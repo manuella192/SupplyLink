@@ -1,0 +1,140 @@
+/* ── Styles partagés espace admin ── */
+
+.ad-page { display: flex; flex-direction: column; gap: 28px; }
+.ad-page-title { font-size: 22px; font-weight: 800; color: var(--color-text-1); }
+
+/* KPI */
+.ad-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.ad-kpi {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ad-kpi-icon {
+  width: 44px; height: 44px;
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.ad-kpi-body { flex: 1; }
+.ad-kpi-label{ font-size: 12px; color: var(--color-text-3); font-weight: 500; }
+.ad-kpi-value{ font-size: 20px; font-weight: 900; color: var(--color-text-1); margin-top: 2px; }
+.ad-kpi-delta{ font-size: 11px; color: var(--color-green); font-weight: 700; margin-top: 2px; }
+
+/* Section card */
+.ad-section {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ad-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-lt);
+}
+.ad-section-head h2 { font-size: 15px; font-weight: 700; color: var(--color-text-1); }
+
+/* Table */
+.ad-table-wrap { overflow-x: auto; }
+
+.ad-table { width: 100%; border-collapse: collapse; }
+
+.ad-table th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--color-text-3);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ad-table td {
+  padding: 13px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--color-border-lt);
+  color: var(--color-text-2);
+  vertical-align: middle;
+}
+
+.ad-table tr:last-child td { border-bottom: none; }
+.ad-table tr:hover td { background: var(--color-bg); }
+
+.ad-td-bold  { font-weight: 700; color: var(--color-primary) !important; }
+.ad-td-muted { color: var(--color-text-3) !important; }
+.ad-td-price { font-weight: 800; color: var(--color-text-1) !important; }
+
+/* Toolbar */
+.ad-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ad-search-wrap { position: relative; flex: 1; min-width: 200px; }
+.ad-search-wrap input { padding-left: 38px; }
+.ad-search-icon {
+  position: absolute; left: 12px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-3);
+  pointer-events: none;
+}
+
+/* Drawer / modal */
+.ad-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(3px);
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.ad-modal {
+  background: #fff;
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: var(--shadow-lg);
+}
+
+.ad-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ad-modal-title { font-size: 17px; font-weight: 800; color: var(--color-text-1); }
+.ad-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .ad-kpis { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 380px) {
+  .ad-kpis { grid-template-columns: 1fr; }
+}

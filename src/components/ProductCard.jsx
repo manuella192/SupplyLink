@@ -1,122 +1,64 @@
 import React from "react";
+import { Star, StarHalf } from "lucide-react";
+import "./ProductCard.css";
 
-
-const ProductCard = ({ product }) => {
+const StarRating = ({ rating = 0, count }) => {
+  const stars = [];
+  for (let i = 1; i <= 5; i++) {
+    if (rating >= i) {
+      stars.push(<Star key={i} size={12} className="star filled" />);
+    } else if (rating >= i - 0.5) {
+      stars.push(<StarHalf key={i} size={12} className="star filled" />);
+    } else {
+      stars.push(<Star key={i} size={12} className="star" />);
+    }
+  }
   return (
-    <div className="product-card" style={cardStyle}>
-      {/* Container de l'image pour assurer un format cohérent */}
-      <div style={imageContainerStyle}>
-        <img 
-          src={product.image} 
-          alt={product.name} 
-          style={imageStyle}
-          // Image de secours si le chemin ne fonctionne pas
-          onError={(e) => { 
-            e.target.onerror = null; 
-            e.target.src = "https://via.placeholder.com/200?text=Image+indisponible"; 
+    <div className="pc-stars">
+      {stars}
+      {count !== undefined && <span className="pc-count">({count})</span>}
+    </div>
+  );
+};
+
+const ProductCard = ({ product, onClick }) => {
+  const {
+    name, price, oldPrice, discount, image,
+    rating = 0, reviewCount, category, isPromoted
+  } = product;
+
+  return (
+    <div className="pc-card" onClick={onClick} tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick?.()}>
+      <div className="pc-image-wrap">
+        <img
+          src={image}
+          alt={name}
+          className="pc-image"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23f3f4f6' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='14' font-family='sans-serif'%3EImage%3C/text%3E%3C/svg%3E";
           }}
         />
+        {isPromoted && <span className="pc-promo-badge">Sponsorisé</span>}
+        {discount && <span className="pc-discount-badge">{discount}</span>}
       </div>
 
-      {/* Détails du produit */}
-      <div style={contentStyle}>
-        <h3 style={titleStyle}>{product.name}</h3>
-        
-        {/* Affichage du prix */}
-        <div style={priceContainerStyle}>
-          <span style={priceStyle}>{product.price}</span>
-          {product.oldPrice && <span style={oldPriceStyle}>{product.oldPrice}</span>}
-        </div>
-        
-        {/* Badge promotionnel si présent */}
-        {product.discount && (
-          <span style={discountBadgeStyle}>{product.discount}</span>
+      <div className="pc-body">
+        {category && <span className="pc-category">{category}</span>}
+        <h3 className="pc-name">{name}</h3>
+
+        {rating > 0 && (
+          <StarRating rating={rating} count={reviewCount} />
         )}
+
+        <div className="pc-price-row">
+          <span className="pc-price">{price} <span className="pc-currency">dh</span></span>
+          {oldPrice && <span className="pc-old-price">{oldPrice} dh</span>}
+        </div>
       </div>
     </div>
   );
 };
-const contactButtonStyle = {
-  width: "60%",            // Réduit la largeur à 60% du parent au lieu de 100%
-  marginTop: "8px",
-  padding: "10px",
-  backgroundColor: "transparent",
-  color: "#009fe3",
-  border: "2px solid #009fe3",
-  borderRadius: "6px",
-  cursor: "pointer",
-  display: "block",        // Permet au bouton d'être un bloc
-  marginLeft: "auto",      // Centre le bouton horizontalement
-  marginRight: "auto"
-};
-
-// --- Styles CSS-in-JS pour garantir une mise en page propre ---
-const cardStyle = {
-  backgroundColor: "#fff",
-  borderRadius: "12px",
-  overflow: "hidden",
-  border: "1px solid #f0f0f0",
-  transition: "transform 0.2s ease, box-shadow 0.2s ease",
-  cursor: "pointer",
-  display: "flex",
-  flexDirection: "column",
-  height: "100%"
-};
-
-const imageContainerStyle = {
-  width: "100%",
-  height: "180px",
-  overflow: "hidden",
-  backgroundColor: "#f9f9f9"
-};
-
-const imageStyle = {
-  width: "100%",
-  height: "100%",
-  objectFit: "cover"
-};
-
-const contentStyle = {
-  padding: "12px",
-  flexGrow: 1
-};
-
-const titleStyle = {
-  fontSize: "14px",
-  fontWeight: "600",
-  color: "#333",
-  margin: "0 0 8px 0",
-  lineHeight: "1.4"
-};
-
-const priceContainerStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px"
-};
-
-const priceStyle = {
-  fontSize: "16px",
-  fontWeight: "700",
-  color: "#009fe3"
-};
-
-const oldPriceStyle = {
-  fontSize: "12px",
-  color: "#999",
-  textDecoration: "line-through"
-};
-
-const discountBadgeStyle = {
-  display: "inline-block",
-  marginTop: "8px",
-  backgroundColor: "#ffebee",
-  color: "#d32f2f",
-  fontSize: "11px",
-  fontWeight: "700",
-  padding: "2px 8px",
-  borderRadius: "4px"
-};
-
 
 export default ProductCard;
