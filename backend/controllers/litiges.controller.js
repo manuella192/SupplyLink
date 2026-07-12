@@ -43,7 +43,7 @@ const create = async (req, res) => {
 const adminList = async (req, res) => {
   const [rows] = await db.query(
     `SELECT l.id, l.ref, l.raison, l.description, l.statut, l.code_retrait, l.created_at,
-            c.ref AS commande_ref, c.total, c.stripe_pi_id,
+            c.ref AS commande_ref, c.total, c.stripe_pi_id, c.updated_at AS date_livraison,
             CONCAT(u.prenom,' ',u.nom) AS client, u.email
      FROM litiges l
      JOIN commandes c ON c.id = l.commande_id

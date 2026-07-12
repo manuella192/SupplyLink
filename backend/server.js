@@ -36,15 +36,33 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
     return res.status(400).send("Webhook signature invalide");
   }
 
+  // ── Paiement commande client (PaymentIntent) ──────────────
   if (event.type === "payment_intent.succeeded") {
-    const pi = event.data.object;
+    const pi      = event.data.object;
     const orderId = pi.metadata?.orderId;
     if (orderId) {
-      // Marquer la commande comme payée (en_preparation) si cash avance confirmée
       await db.query(
         "UPDATE commandes SET statut='en_preparation' WHERE ref=? AND statut='en_attente' AND mode_paiement='stripe'",
         [orderId]
       ).catch(console.error);
+    }
+  }
+
+  // ── Paiement promotion fournisseur (Checkout Session) ─────
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const promoId = session.metadata?.promoId;
+    if (promoId && session.payment_status === "paid") {
+      // Activer la promo et mettre l'article en avant
+      const [[promo]] = await db.query(
+        "SELECT article_id FROM promotions WHERE id=?", [promoId]
+      ).catch(() => [[]]);
+      if (promo) {
+        await Promise.all([
+          db.query("UPDATE promotions SET statut='actif' WHERE id=?", [promoId]),
+          db.query("UPDATE articles SET is_promoted=1 WHERE id=?", [promo.article_id]),
+        ]).catch(console.error);
+      }
     }
   }
 
@@ -56,7 +74,13 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false }));
 
 // ── Fichiers uploads (images articles) ───────────────────
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// helmet() applique Cross-Origin-Resource-Policy: same-origin par défaut,
+// ce qui bloque les <img> cross-origin (localhost:3000 → localhost:5000).
+// On écrase ce header uniquement pour la route uploads.
+app.use("/uploads", (req, res, next) => {
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+}, express.static(path.join(__dirname, "uploads")));
 
 // ── Routes API ────────────────────────────────────────────
 app.use("/api/auth",       require("./routes/auth.routes"));

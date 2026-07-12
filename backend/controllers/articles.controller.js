@@ -10,10 +10,10 @@ const homepage = async (req, res) => {
     WHERE a.statut = 'actif'`;
 
   const [[sponsorises], [topNotes], [nouveautes], [tendances]] = await Promise.all([
-    db.query(BASE + ` AND a.is_promoted = 1 ORDER BY a.note_moy DESC LIMIT 8`),
-    db.query(BASE + ` AND a.nb_avis >= 5 ORDER BY a.note_moy DESC, a.nb_avis DESC LIMIT 8`),
-    db.query(BASE + ` ORDER BY a.created_at DESC LIMIT 8`),
-    db.query(BASE + ` ORDER BY a.nb_avis DESC, a.note_moy DESC LIMIT 8`),
+    db.query(BASE + ` AND a.is_promoted = 1 ORDER BY a.created_at DESC LIMIT 12`),
+    db.query(BASE + ` AND a.nb_avis >= 1 ORDER BY a.note_moy DESC, a.nb_avis DESC LIMIT 12`),
+    db.query(BASE + ` ORDER BY a.created_at DESC LIMIT 12`),
+    db.query(BASE + ` ORDER BY a.nb_avis DESC, a.note_moy DESC LIMIT 12`),
   ]);
 
   res.json({ sponsorises, topNotes, nouveautes, tendances });
@@ -134,4 +134,63 @@ const adminToggle = async (req, res) => {
   res.json({ statut: next });
 };
 
-module.exports = { homepage, list, getOne, myArticles, create, update, remove, adminToggle };
+const adminListAll = async (req, res) => {
+  const { q, categorie, statut: statutFilter, page = 1, limit = 30 } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const where = [];
+  const vals  = [];
+  if (q)                                     { where.push("(a.nom LIKE ? OR b.nom LIKE ?)"); vals.push(`%${q}%`, `%${q}%`); }
+  if (categorie && categorie !== "all")      { where.push("a.categorie = ?"); vals.push(categorie); }
+  if (statutFilter && statutFilter !== "all"){ where.push("a.statut = ?");    vals.push(statutFilter); }
+  const whereStr = where.length ? "WHERE " + where.join(" AND ") : "";
+  const [rows] = await db.query(
+    `SELECT a.id, a.nom, a.prix, a.stock, a.categorie, a.image, a.statut, a.created_at,
+            b.nom AS fournisseur
+     FROM articles a
+     JOIN boutiques b ON b.user_id = a.fournisseur_id
+     ${whereStr}
+     ORDER BY a.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...vals, parseInt(limit), offset]
+  );
+  const [[{ total }]] = await db.query(
+    `SELECT COUNT(*) AS total FROM articles a JOIN boutiques b ON b.user_id = a.fournisseur_id ${whereStr}`,
+    vals
+  );
+  res.json({ data: rows, total });
+};
+
+/* ── Enregistrement d'une vue (public) ── */
+const recordView = async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!isNaN(id)) {
+    await db.query("INSERT INTO article_views (article_id) VALUES (?)", [id]);
+  }
+  res.json({ ok: true });
+};
+
+/* ── Stats fournisseur : vues ce mois + acheteurs exposés ── */
+const PACK_REACH = { starter: 1000, pro: 15000, elite: 40000 };
+
+const myStats = async (req, res) => {
+  const userId = req.user.id;
+
+  const [[{ vues_mois }]] = await db.query(`
+    SELECT COUNT(*) AS vues_mois
+    FROM article_views av
+    JOIN articles a ON a.id = av.article_id
+    WHERE a.fournisseur_id = ?
+      AND av.viewed_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+  `, [userId]);
+
+  const [promos] = await db.query(
+    `SELECT pack FROM promotions
+     WHERE fournisseur_id = ? AND statut = 'actif' AND date_fin >= CURDATE()`,
+    [userId]
+  );
+  const acheteurs = promos.reduce((sum, p) => sum + (PACK_REACH[p.pack] || 0), 0);
+
+  res.json({ vues_mois: Number(vues_mois), acheteurs });
+};
+
+module.exports = { homepage, list, getOne, myArticles, create, update, remove, adminToggle, adminListAll, recordView, myStats };

@@ -13,18 +13,25 @@ const articleRules = [
   body("categorie").trim().notEmpty(),
 ];
 
-// Public
-router.get("/homepage", ctrl.homepage);
-router.get("/",         ctrl.list);
-router.get("/:id",      ctrl.getOne);
+// Routes spécifiques AVANT les routes paramétrées (évite que /:id capture "me", "admin", etc.)
+router.get("/homepage",   ctrl.homepage);
+router.get("/",           ctrl.list);
+router.get("/me/list",    verifyToken, requireRole("fournisseur"), ctrl.myArticles);
+router.get("/me/stats",   verifyToken, requireRole("fournisseur"), ctrl.myStats);
+router.get("/admin/list", verifyToken, requireRole("admin"),       ctrl.adminListAll);
 
-// Fournisseur
-router.get("/me/list", verifyToken, requireRole("fournisseur"), ctrl.myArticles);
-router.post("/",   verifyToken, requireRole("fournisseur"), upload.single("image"), articleRules, validate, ctrl.create);
-router.put("/:id", verifyToken, requireRole("fournisseur"), upload.single("image"), articleRules, validate, ctrl.update);
-router.delete("/:id", verifyToken, requireRole("fournisseur"), ctrl.remove);
+// Routes fournisseur
+router.post("/",       verifyToken, requireRole("fournisseur"), upload.single("image"), articleRules, validate, ctrl.create);
+router.put("/:id",     verifyToken, requireRole("fournisseur"), upload.single("image"), articleRules, validate, ctrl.update);
+router.delete("/:id",  verifyToken, requireRole("fournisseur"), ctrl.remove);
 
-// Admin
+// Routes admin
 router.patch("/:id/toggle", verifyToken, requireRole("admin"), ctrl.adminToggle);
+
+// Vue publique (fire-and-forget, pas d'auth requise)
+router.post("/:id/view", ctrl.recordView);
+
+// Route publique avec paramètre EN DERNIER
+router.get("/:id", ctrl.getOne);
 
 module.exports = router;

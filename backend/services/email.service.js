@@ -23,12 +23,23 @@ const TEMPLATES = {
       <p>Vous recevrez un email à chaque étape de votre livraison.</p>
     `,
   }),
+  commande_en_preparation: (d) => ({
+    subject: `Commande ${d.ref} en préparation`,
+    html: `
+      <h2 style="color:#009fe3">Votre commande est en préparation !</h2>
+      <p>Bonjour ${d.prenom},</p>
+      <p>La commande <strong>${d.ref}</strong> est en cours de préparation par nos équipes.</p>
+      <p>Vous recevrez un email dès qu'elle sera expédiée.</p>
+    `,
+  }),
   commande_expediee: (d) => ({
     subject: `Commande ${d.ref} expédiée`,
     html: `
       <h2 style="color:#009fe3">Votre commande est en route !</h2>
       <p>Bonjour ${d.prenom},</p>
-      <p>La commande <strong>${d.ref}</strong> a été expédiée et arrivera sous peu.</p>
+      <p>La commande <strong>${d.ref}</strong> a été confiée à notre livreur.</p>
+      ${d.heureLivraison ? `<p>📦 Créneau de livraison estimé : <strong>${d.heureLivraison}</strong></p>` : ""}
+      <p>Assurez-vous d'être disponible à l'adresse de livraison.</p>
     `,
   }),
   commande_livree: (d) => ({

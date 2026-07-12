@@ -179,6 +179,7 @@
 }
 
 .fn-promo-modal {
+  position: relative;
   background: #fff;
   border-radius: var(--radius-xl);
   padding: 36px 32px;

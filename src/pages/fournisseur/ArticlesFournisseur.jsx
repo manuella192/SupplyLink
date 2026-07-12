@@ -10,6 +10,7 @@ const CATEGORIES = ["Mobilier", "Électroménager", "Décoration", "Literie", "C
 const EMPTY_FORM  = { nom: "", prix: "", stock: "", categorie: "", description: "" };
 
 const BASE_URL = process.env.REACT_APP_API_URL?.replace("/api", "") || "http://localhost:5000";
+const IMG_PH   = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='90'%3E%3Crect fill='%23f1f5f9' width='120' height='90' rx='6'/%3E%3Ctext x='60' y='52' font-family='sans-serif' font-size='11' fill='%23cbd5e1' text-anchor='middle'%3EAucune photo%3C/text%3E%3C/svg%3E";
 
 const ArticlesFournisseur = () => {
   const [articles, setArticles]   = useState([]);
@@ -30,7 +31,7 @@ const ArticlesFournisseur = () => {
       setLoading(true);
       const { data } = await getMyArticles();
       setArticles(data);
-    } catch { /* silently fail — afficher état vide */ }
+    } catch { /* silently fail */ }
     finally { setLoading(false); }
   }, []);
 
@@ -64,20 +65,14 @@ const ArticlesFournisseur = () => {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
       if (imageFile) fd.append("image", imageFile);
-
-      if (view === "add") {
-        await createArticle(fd);
-      } else {
-        await updateArticle(editId, fd);
-      }
+      if (view === "add") { await createArticle(fd); }
+      else                { await updateArticle(editId, fd); }
       setSaved(true);
       await load();
       setTimeout(() => { setSaved(false); setView("list"); }, 1400);
     } catch (err) {
       alert(err.response?.data?.message || "Erreur lors de l'enregistrement");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const confirmDelete = async () => {
@@ -123,10 +118,12 @@ const ArticlesFournisseur = () => {
             <div className="fn-articles-grid">
               {filtered.map((a) => (
                 <div key={a.id} className="fn-article-card">
-                  <img className="fn-article-img"
-                    src={a.image ? BASE_URL + a.image : ""}
+                  <img
+                    className="fn-article-img"
+                    src={a.image ? BASE_URL + a.image : IMG_PH}
                     alt={a.nom}
-                    onError={(e) => { e.target.src = ""; }} />
+                    onError={(e) => { e.target.onerror = null; e.target.src = IMG_PH; }}
+                  />
                   <div className="fn-article-body">
                     <span className="fn-article-cat">{a.categorie}</span>
                     <span className="fn-article-name">{a.nom}</span>

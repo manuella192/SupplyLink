@@ -1,46 +1,79 @@
-import React, { useState } from "react";
-import { Search, Eye, CheckCircle, XCircle, X, AlertTriangle } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Search, Eye, CheckCircle, XCircle, X, AlertTriangle, Loader, Calendar } from "lucide-react";
+import { getLitigesAdmin, resolveLitige, rejectLitige } from "../../services/commandes.service";
 import "./admin.css";
 
 const RAISONS = {
-  non_conforme: "Article non conforme",
-  endommage:    "Article endommagé",
-  manquant:     "Article manquant",
+  non_conforme: "Non conforme",
+  endommage:    "Endommagé",
+  manquant:     "Manquant",
   autre:        "Autre",
 };
 
-const INITIAL = [
-  { id: "LIT-001", commande: "CMD-102", client: "Sara Alaoui",   article: "Table Ronde",      raison: "non_conforme", description: "La table reçue n'est pas la bonne couleur.", statut: "ouvert",   date: "10/07/2026", montant: 1899, retrait: null          },
-  { id: "LIT-002", commande: "CMD-098", client: "Karim Idrissi", article: "Canapé 3 places",  raison: "endommage",    description: "Un pied du canapé est cassé à la livraison.", statut: "en_cours", date: "08/07/2026", montant: 3200, retrait: null          },
-  { id: "LIT-003", commande: "CMD-087", client: "Latifa Benaissa",article:"Lampe de bureau",  raison: "manquant",     description: "Le câble USB n'était pas dans le colis.",     statut: "résolu",   date: "01/07/2026", montant: 129,  retrait: "CP-48291-MA" },
-];
-
 const STATUS_INFO = {
-  ouvert:   { cls: "badge-pending",   label: "Ouvert"    },
-  en_cours: { cls: "badge-process",   label: "En cours"  },
-  résolu:   { cls: "badge-delivered", label: "Résolu"    },
-  rejeté:   { cls: "badge-blocked",   label: "Rejeté"    },
+  ouvert:   { cls: "badge-pending",   label: "Ouvert"   },
+  en_cours: { cls: "badge-process",   label: "En cours" },
+  résolu:   { cls: "badge-delivered", label: "Résolu"   },
+  rejeté:   { cls: "badge-blocked",   label: "Rejeté"   },
+};
+
+const daysBetween = (date1, date2) => {
+  if (!date1 || !date2) return null;
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  if (isNaN(d1) || isNaN(d2)) return null;
+  return Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
 };
 
 const LitigesAdmin = () => {
-  const [litiges, setLitiges] = useState(INITIAL);
-  const [search, setSearch]   = useState("");
-  const [filter, setFilter]   = useState("all");
-  const [detail, setDetail]   = useState(null);
-  const [code, setCode]       = useState("");
+  const [litiges, setLitiges] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search,  setSearch]  = useState("");
+  const [filter,  setFilter]  = useState("all");
+  const [detail,  setDetail]  = useState(null);
+  const [code,    setCode]    = useState("");
+  const [acting,  setActing]  = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data } = await getLitigesAdmin();
+      setLitiges(data);
+    } catch { /* état vide */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleResolve = async () => {
+    if (!code.trim()) return;
+    setActing(true);
+    try {
+      await resolveLitige(detail.id, code.trim());
+      await load();
+      setDetail(null);
+      setCode("");
+    } catch (err) {
+      alert(err.response?.data?.message || "Erreur");
+    } finally { setActing(false); }
+  };
+
+  const handleReject = async () => {
+    setActing(true);
+    try {
+      await rejectLitige(detail.id);
+      await load();
+      setDetail(null);
+    } catch { /* ignore */ }
+    finally { setActing(false); }
+  };
 
   const filtered = litiges.filter((l) => {
-    const q = search.toLowerCase();
-    const match = `${l.id} ${l.client} ${l.article}`.toLowerCase().includes(q);
-    const f = filter === "all" || l.statut === filter;
-    return match && f;
+    const q = `${l.ref} ${l.client} ${l.commande_ref}`.toLowerCase();
+    const matchQ = q.includes(search.toLowerCase());
+    const matchF = filter === "all" || l.statut === filter;
+    return matchQ && matchF;
   });
-
-  const setStatut = (id, statut, retrait = null) => {
-    setLitiges((prev) => prev.map((l) => l.id === id ? { ...l, statut, retrait: retrait || l.retrait } : l));
-    setDetail(null);
-    setCode("");
-  };
 
   return (
     <div className="ad-page">
@@ -49,7 +82,7 @@ const LitigesAdmin = () => {
       <div className="ad-toolbar">
         <div className="ad-search-wrap">
           <Search size={15} className="ad-search-icon" />
-          <input className="form-input" placeholder="ID, client, article…"
+          <input className="form-input" placeholder="Réf., client…"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="form-input" style={{ width: "auto" }} value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -58,39 +91,55 @@ const LitigesAdmin = () => {
         </select>
       </div>
 
-      <div className="ad-section">
-        <div className="ad-table-wrap">
-          <table className="ad-table">
-            <thead>
-              <tr>{["ID","Commande","Client","Article","Raison","Montant","Date","Statut","Action"].map((h) => <th key={h}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-3)" }}>Aucun litige</td></tr>
-              ) : filtered.map((l) => {
-                const si = STATUS_INFO[l.statut];
-                return (
-                  <tr key={l.id}>
-                    <td className="ad-td-bold">{l.id}</td>
-                    <td className="ad-td-muted">{l.commande}</td>
-                    <td>{l.client}</td>
-                    <td>{l.article}</td>
-                    <td style={{ fontSize: 12 }}>{RAISONS[l.raison]}</td>
-                    <td className="ad-td-price">{l.montant.toLocaleString()} dh</td>
-                    <td className="ad-td-muted">{l.date}</td>
-                    <td><span className={`badge ${si.cls}`}>{si.label}</span></td>
-                    <td>
-                      <button className="btn btn-ghost" style={{ padding: "5px 8px" }} onClick={() => { setDetail(l); setCode(""); }}>
-                        <Eye size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
+          <Loader size={26} className="spin" style={{ color: "var(--color-primary)" }} />
         </div>
-      </div>
+      ) : (
+        <div className="ad-section">
+          <div className="ad-table-wrap">
+            <table className="ad-table">
+              <thead>
+                <tr>{["Réf.","Commande","Client","Raison","Montant","Livré le","Demande","Jours","Statut",""].map((h, i) => <th key={i}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={10} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-3)" }}>Aucun litige</td></tr>
+                ) : filtered.map((l) => {
+                  const si   = STATUS_INFO[l.statut] || STATUS_INFO.ouvert;
+                  const days = daysBetween(l.date_livraison, l.created_at);
+                  return (
+                    <tr key={l.id}>
+                      <td className="ad-td-bold">{l.ref}</td>
+                      <td className="ad-td-muted">{l.commande_ref}</td>
+                      <td>{l.client}</td>
+                      <td style={{ fontSize: 12 }}>{RAISONS[l.raison] || l.raison}</td>
+                      <td className="ad-td-price">{Number(l.total).toLocaleString()} dh</td>
+                      <td className="ad-td-muted">{l.date_livraison ? new Date(l.date_livraison).toLocaleDateString("fr-MA") : "—"}</td>
+                      <td className="ad-td-muted">{new Date(l.created_at).toLocaleDateString("fr-MA")}</td>
+                      <td>
+                        {days !== null ? (
+                          <span style={{
+                            fontWeight: 700, fontSize: 12,
+                            color: days <= 2 ? "var(--color-green)" : days <= 5 ? "var(--color-amber)" : "var(--color-red)"
+                          }}>{days}j</span>
+                        ) : "—"}
+                      </td>
+                      <td><span className={`badge ${si.cls}`}>{si.label}</span></td>
+                      <td>
+                        <button className="btn btn-ghost" style={{ padding: "5px 8px" }}
+                          onClick={() => { setDetail(l); setCode(""); }}>
+                          <Eye size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {detail && (
         <div className="ad-overlay" onClick={() => setDetail(null)}>
@@ -98,19 +147,18 @@ const LitigesAdmin = () => {
             <div className="ad-modal-head">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <AlertTriangle size={18} style={{ color: "var(--color-amber)" }} />
-                <h2 className="ad-modal-title">Litige {detail.id}</h2>
+                <h2 className="ad-modal-title">Litige {detail.ref}</h2>
               </div>
               <button className="btn btn-ghost" style={{ padding: "4px 8px" }} onClick={() => setDetail(null)}><X size={16} /></button>
             </div>
 
             {[
-              ["Commande",   detail.commande],
+              ["Commande",   detail.commande_ref],
               ["Client",     detail.client],
-              ["Article",    detail.article],
-              ["Raison",     RAISONS[detail.raison]],
-              ["Montant",    `${detail.montant.toLocaleString()} dh`],
-              ["Date",       detail.date],
-              ["Statut",     STATUS_INFO[detail.statut].label],
+              ["Email",      detail.email],
+              ["Raison",     RAISONS[detail.raison] || detail.raison],
+              ["Montant",    `${Number(detail.total).toLocaleString()} dh`],
+              ["Statut",     STATUS_INFO[detail.statut]?.label || detail.statut],
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", gap: 12, padding: "9px 0", borderBottom: "1px solid var(--color-border-lt)" }}>
                 <span style={{ minWidth: 90, fontSize: 12, fontWeight: 700, color: "var(--color-text-3)", textTransform: "uppercase" }}>{k}</span>
@@ -118,34 +166,46 @@ const LitigesAdmin = () => {
               </div>
             ))}
 
-            {/* Description */}
-            <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 13, color: "var(--color-text-2)", fontStyle: "italic" }}>
+            {/* Dates et délai */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, margin: "14px 0 4px", background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "14px" }}>
+              {[
+                { label: "Livré le",      val: detail.date_livraison ? new Date(detail.date_livraison).toLocaleDateString("fr-MA") : "—" },
+                { label: "Demande le",    val: new Date(detail.created_at).toLocaleDateString("fr-MA") },
+                { label: "Délai",         val: daysBetween(detail.date_livraison, detail.created_at) !== null ? `${daysBetween(detail.date_livraison, detail.created_at)} jour(s)` : "—" },
+              ].map(({ label, val }) => (
+                <div key={label} style={{ textAlign: "center" }}>
+                  <Calendar size={14} style={{ color: "var(--color-text-3)", marginBottom: 4 }} />
+                  <p style={{ fontSize: 11, color: "var(--color-text-3)", fontWeight: 700, textTransform: "uppercase", margin: "0 0 3px" }}>{label}</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-1)", margin: 0 }}>{val}</p>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 13, color: "var(--color-text-2)", fontStyle: "italic", margin: "8px 0" }}>
               "{detail.description}"
             </div>
 
-            {detail.retrait && (
-              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
+            {detail.code_retrait && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-md)", padding: "12px 14px", marginBottom: 8 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: "var(--color-green)", marginBottom: 4 }}>CODE DE RETRAIT</p>
-                <p style={{ fontSize: 18, fontWeight: 900, color: "#15803d", letterSpacing: 2 }}>{detail.retrait}</p>
-                <p style={{ fontSize: 11, color: "var(--color-text-3)", marginTop: 4 }}>À communiquer au client pour retrait Cash Plus / Wafa Cash</p>
+                <p style={{ fontSize: 18, fontWeight: 900, color: "#15803d", letterSpacing: 2 }}>{detail.code_retrait}</p>
+                <p style={{ fontSize: 11, color: "var(--color-text-3)", marginTop: 4 }}>Cash Plus / Wafa Cash</p>
               </div>
             )}
 
             {(detail.statut === "ouvert" || detail.statut === "en_cours") && (
               <>
-                {/* Champ code retrait pour résoudre */}
-                <div className="form-group">
+                <div className="form-group" style={{ margin: "8px 0 0" }}>
                   <label className="form-label">Code retrait (Cash Plus / Wafa Cash)</label>
                   <input className="form-input" placeholder="Ex: CP-XXXXX-MA" value={code}
                     onChange={(e) => setCode(e.target.value)} />
                 </div>
-
                 <div className="ad-modal-actions">
-                  <button className="btn btn-danger" onClick={() => setStatut(detail.id, "rejeté")}>
-                    <XCircle size={14} style={{ marginRight: 4 }} /> Rejeter
+                  <button className="btn btn-danger" disabled={acting} onClick={handleReject}>
+                    {acting ? <Loader size={13} className="spin" /> : <XCircle size={14} style={{ marginRight: 4 }} />} Rejeter
                   </button>
-                  <button className="btn btn-primary" disabled={!code.trim()} onClick={() => setStatut(detail.id, "résolu", code.trim())}>
-                    <CheckCircle size={14} style={{ marginRight: 4 }} /> Résoudre + remboursement
+                  <button className="btn btn-primary" disabled={!code.trim() || acting} onClick={handleResolve}>
+                    {acting ? <Loader size={13} className="spin" /> : <CheckCircle size={14} style={{ marginRight: 4 }} />} Résoudre + remboursement
                   </button>
                 </div>
               </>

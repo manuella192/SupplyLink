@@ -39,7 +39,7 @@ const AdminLayout = () => {
       {/* ── SIDEBAR ── */}
       <aside className={`admin-sidebar ${open ? "open" : ""}`}>
         <div className="adm-sidebar-header">
-          <div className="adm-logo">
+          <Link to="/" className="adm-logo" style={{ textDecoration: "none" }}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
               stroke="#009fe3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
@@ -49,7 +49,7 @@ const AdminLayout = () => {
               <span className="adm-logo-name">SupplyLink</span>
               <span className="adm-logo-sub">Administration</span>
             </div>
-          </div>
+          </Link>
           <button className="adm-close-btn" onClick={() => setOpen(false)}>
             <X size={18} />
           </button>

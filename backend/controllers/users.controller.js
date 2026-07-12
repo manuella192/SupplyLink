@@ -1,4 +1,5 @@
-const db = require("../config/db");
+const db     = require("../config/db");
+const bcrypt = require("bcryptjs");
 
 const list = async (req, res) => {
   const { q, role, page = 1, limit = 20 } = req.query;
@@ -42,4 +43,66 @@ const toggleStatut = async (req, res) => {
   res.json({ statut: next });
 };
 
-module.exports = { list, toggleStatut };
+const createFournisseur = async (req, res) => {
+  const { prenom, nom, email, telephone, ville, boutique, password } = req.body;
+  if (!prenom || !nom || !email || !password)
+    return res.status(400).json({ message: "Champs obligatoires : prénom, nom, email, mot de passe" });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const [existing] = await db.query("SELECT id FROM users WHERE email = ?", [normalizedEmail]);
+  if (existing.length) return res.status(409).json({ message: "Cet email est déjà utilisé" });
+
+  const hash = await bcrypt.hash(password, 12);
+  const conn = await db.getConnection();
+  await conn.beginTransaction();
+  try {
+    const [result] = await conn.query(
+      `INSERT INTO users (prenom, nom, email, telephone, ville, password_hash) VALUES (?, ?, ?, ?, ?, ?)`,
+      [prenom.trim(), nom.trim(), normalizedEmail, telephone || null, ville || null, hash]
+    );
+    const uid = result.insertId;
+    await conn.query("INSERT INTO user_roles (user_id, role) VALUES (?, 'fournisseur')", [uid]);
+    await conn.query(
+      "INSERT INTO boutiques (user_id, nom, description) VALUES (?, ?, '')",
+      [uid, (boutique || `${prenom} ${nom}`).trim()]
+    );
+    await conn.commit();
+    conn.release();
+    res.status(201).json({ message: "Fournisseur créé avec succès", userId: uid });
+  } catch (e) {
+    await conn.rollback();
+    conn.release();
+    throw e;
+  }
+};
+
+const createLivreur = async (req, res) => {
+  const { prenom, nom, email, telephone, ville, password } = req.body;
+  if (!prenom || !nom || !email || !password)
+    return res.status(400).json({ message: "Champs obligatoires : prénom, nom, email, mot de passe" });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const [existing] = await db.query("SELECT id FROM users WHERE email = ?", [normalizedEmail]);
+  if (existing.length) return res.status(409).json({ message: "Cet email est déjà utilisé" });
+
+  const hash = await bcrypt.hash(password, 12);
+  const conn = await db.getConnection();
+  await conn.beginTransaction();
+  try {
+    const [result] = await conn.query(
+      `INSERT INTO users (prenom, nom, email, telephone, ville, password_hash) VALUES (?, ?, ?, ?, ?, ?)`,
+      [prenom.trim(), nom.trim(), normalizedEmail, telephone || null, ville || null, hash]
+    );
+    const uid = result.insertId;
+    await conn.query("INSERT INTO user_roles (user_id, role) VALUES (?, 'livreur')", [uid]);
+    await conn.commit();
+    conn.release();
+    res.status(201).json({ message: "Livreur créé avec succès", userId: uid });
+  } catch (e) {
+    await conn.rollback();
+    conn.release();
+    throw e;
+  }
+};
+
+module.exports = { list, toggleStatut, createFournisseur, createLivreur };

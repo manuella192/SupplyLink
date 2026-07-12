@@ -34,7 +34,7 @@ const FournisseurLayout = () => {
       {/* ── HEADER ── */}
       <header className="app-header fn-header">
         <div className="fn-header-inner">
-          <div className="fn-logo">
+          <Link to="/" className="fn-logo" style={{ textDecoration: "none" }}>
             <svg viewBox="0 0 24 24" width="26" height="26" fill="none"
               stroke="#009fe3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
@@ -44,7 +44,7 @@ const FournisseurLayout = () => {
               SupplyLink
               <span className="fn-logo-badge">Vendeur</span>
             </span>
-          </div>
+          </Link>
 
           <div className="fn-header-right">
             {/* Switch vers espace client si l'utilisateur a les deux rôles */}

@@ -6,7 +6,9 @@ import {
   ChevronLeft, ChevronRight, Store
 } from "lucide-react";
 import ProductCard from "../../components/ProductCard";
-import { getArticle, getArticles } from "../../services/articles.service";
+import { getArticle, getArticles, recordView } from "../../services/articles.service";
+import { useCart } from "../../contexts/CartContext";
+import { useAuth, ROLES } from "../../contexts/AuthContext";
 import { idFromSlug, toProductUrl } from "../../utils/slug";
 import "./ProductDetail.css";
 
@@ -82,11 +84,15 @@ const RelatedRow = ({ items, onSelect }) => {
 const ProductDetail = () => {
   const { slug }    = useParams();
   const navigate    = useNavigate();
+  const { addItem } = useCart();
+  const { activeRole } = useAuth();
+  const canAddToCart = activeRole !== ROLES.FOURNISSEUR && activeRole !== ROLES.ADMIN && activeRole !== ROLES.LIVREUR;
   const [product, setProduct]   = useState(null);
   const [related,  setRelated]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [qty, setQty]           = useState(1);
   const [added, setAdded]       = useState(false);
+  const lastViewedId = useRef(null);
 
   const id = idFromSlug(slug);
 
@@ -103,6 +109,11 @@ const ProductDetail = () => {
         setProduct(p);
         document.title = `${p.name} — SupplyLink`;
 
+        if (lastViewedId.current !== id) {
+          lastViewedId.current = id;
+          recordView(id).catch(() => {});
+        }
+
         // Produits similaires : même catégorie, exclure le courant
         const { data: rel } = await getArticles({ categorie: p.category, limit: 10 });
         setRelated(rel.data.filter((a) => a.id !== id).slice(0, 8).map(normalize));
@@ -117,7 +128,7 @@ const ProductDetail = () => {
   }, [id, navigate]);
 
   const handleAddToCart = () => {
-    // TODO: intégrer CartContext
+    addItem(product, qty);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
@@ -193,24 +204,26 @@ const ProductDetail = () => {
             <p className="pd-description">{product.description}</p>
           )}
 
-          {/* Achat */}
-          <div className="pd-purchase">
-            <div className="pd-qty">
-              <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1}>
-                <Minus size={16} />
-              </button>
-              <span>{qty}</span>
-              <button onClick={() => setQty((q) => q + 1)}>
-                <Plus size={16} />
+          {/* Achat — masqué pour fournisseur et admin */}
+          {canAddToCart && (
+            <div className="pd-purchase">
+              <div className="pd-qty">
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1}>
+                  <Minus size={16} />
+                </button>
+                <span>{qty}</span>
+                <button onClick={() => setQty((q) => q + 1)}>
+                  <Plus size={16} />
+                </button>
+              </div>
+              <button
+                className={`btn btn-primary btn-lg pd-add-btn ${added ? "added" : ""}`}
+                onClick={handleAddToCart}>
+                <ShoppingCart size={18} />
+                {added ? "Ajouté !" : "Ajouter au panier"}
               </button>
             </div>
-            <button
-              className={`btn btn-primary btn-lg pd-add-btn ${added ? "added" : ""}`}
-              onClick={handleAddToCart}>
-              <ShoppingCart size={18} />
-              {added ? "Ajouté !" : "Ajouter au panier"}
-            </button>
-          </div>
+          )}
 
           {/* Réassurance */}
           <div className="pd-reas">

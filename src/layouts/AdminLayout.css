@@ -156,5 +156,5 @@
 @media (max-width: 1024px) {
   .adm-close-btn { display: flex; }
   .adm-topbar    { display: flex; }
-  .adm-content   { padding: 16px; }
+  .adm-content   { padding: 16px 16px 48px; }
 }

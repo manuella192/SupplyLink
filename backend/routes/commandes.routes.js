@@ -17,8 +17,11 @@ router.post("/", verifyToken, requireRole("client"), [
   body("modePaiement").isIn(["stripe", "cash"]),
 ], validate, ctrl.create);
 
-router.get("/me",  verifyToken, requireRole("client"), ctrl.myOrders);
-router.get("/",    verifyToken, requireRole("admin"),  ctrl.adminList);
-router.patch("/:id/advance", verifyToken, requireRole("admin", "livreur"), ctrl.advance);
+router.get("/me",               verifyToken, requireRole("client"),           ctrl.myOrders);
+router.get("/livreur",          verifyToken, requireRole("livreur"),           ctrl.livreurOrders);
+router.get("/fournisseur",      verifyToken, requireRole("fournisseur"),       ctrl.fournisseurOrders);
+router.get("/fournisseur/stats",verifyToken, requireRole("fournisseur"),       ctrl.fournisseurStats);
+router.get("/",                 verifyToken, requireRole("admin"),             ctrl.adminList);
+router.patch("/:id/advance",    verifyToken, requireRole("admin","livreur"),   ctrl.advance);
 
 module.exports = router;

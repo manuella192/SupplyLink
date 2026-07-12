@@ -117,6 +117,8 @@
   margin: 0 auto;
   width: 100%;
   padding: 24px 20px;
+  /* La nav fixe en bas mesure var(--nav-h)=60px, on ajoute le padding nominal en plus */
+  padding-bottom: calc(var(--nav-h) + 24px);
 }
 
 /* Nav */

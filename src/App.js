@@ -2,11 +2,13 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import { AuthProvider, useAuth, ROLES } from "./contexts/AuthContext";
+import { CartProvider } from "./contexts/CartContext";
 
 // Layouts
-import ClientLayout     from "./layouts/ClientLayout";
+import ClientLayout      from "./layouts/ClientLayout";
 import FournisseurLayout from "./layouts/FournisseurLayout";
-import AdminLayout      from "./layouts/AdminLayout";
+import AdminLayout       from "./layouts/AdminLayout";
+import LivreurLayout     from "./layouts/LivreurLayout";
 
 // Pages auth
 import Login    from "./pages/auth/Login";
@@ -36,6 +38,9 @@ import ArticlesAdmin  from "./pages/admin/ArticlesAdmin";
 import PromosAdmin    from "./pages/admin/PromosAdmin";
 import LitigesAdmin   from "./pages/admin/LitigesAdmin";
 
+// Pages livreur
+import LivraisonsLivreur from "./pages/livreur/LivraisonsLivreur";
+
 // -------------------------------------------------------------------
 // Gardiens de routes
 // -------------------------------------------------------------------
@@ -53,6 +58,7 @@ const RedirectIfAuth = ({ children }) => {
   if (!isAuthenticated) return children;
   if (activeRole === ROLES.ADMIN)       return <Navigate to="/admin" replace />;
   if (activeRole === ROLES.FOURNISSEUR) return <Navigate to="/fournisseur" replace />;
+  if (activeRole === ROLES.LIVREUR)     return <Navigate to="/livreur" replace />;
   return <Navigate to="/" replace />;
 };
 
@@ -116,6 +122,15 @@ const AppRoutes = () => (
       <Route path="litiges"      element={<LitigesAdmin />} />
     </Route>
 
+    {/* Espace livreur */}
+    <Route path="livreur" element={
+      <RequireAuth allowedRoles={[ROLES.LIVREUR]}>
+        <LivreurLayout />
+      </RequireAuth>
+    }>
+      <Route index element={<LivraisonsLivreur />} />
+    </Route>
+
     {/* Fallback */}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
@@ -124,7 +139,9 @@ const AppRoutes = () => (
 const App = () => (
   <BrowserRouter>
     <AuthProvider>
-      <AppRoutes />
+      <CartProvider>
+        <AppRoutes />
+      </CartProvider>
     </AuthProvider>
   </BrowserRouter>
 );
