@@ -91,6 +91,7 @@ app.use("/api/litiges",    require("./routes/litiges.routes"));
 app.use("/api/promotions", require("./routes/promotions.routes"));
 app.use("/api/users",      require("./routes/users.routes"));
 app.use("/api/contact",    require("./routes/contact.routes"));
+app.use("/api/chatbot",   require("./routes/chatbot.routes"));
 
 // ── Health check ──────────────────────────────────────────
 app.get("/api/health", (_req, res) => res.json({ status: "ok", ts: new Date() }));

@@ -41,6 +41,9 @@ import LitigesAdmin   from "./pages/admin/LitigesAdmin";
 // Pages livreur
 import LivraisonsLivreur from "./pages/livreur/LivraisonsLivreur";
 
+// Chatbot
+import Chatbot from "./components/Chatbot/Chatbot";
+
 // -------------------------------------------------------------------
 // Gardiens de routes
 // -------------------------------------------------------------------
@@ -141,6 +144,7 @@ const App = () => (
     <AuthProvider>
       <CartProvider>
         <AppRoutes />
+        <Chatbot />
       </CartProvider>
     </AuthProvider>
   </BrowserRouter>
