@@ -1,0 +1,106 @@
+{
+  "site": {
+    "nom": "SupplyLink",
+    "slogan": "Votre marketplace de mobilier, décoration et électroménager au Maroc",
+    "description": "SupplyLink est une marketplace marocaine en ligne qui met en relation des fournisseurs locaux et des acheteurs (particuliers et professionnels). Elle propose du mobilier, de la décoration intérieure et de l'électroménager à des prix compétitifs, livrés directement chez vous au Maroc.",
+    "public_cible": "Particuliers et professionnels résidant au Maroc souhaitant acheter du mobilier, de la décoration ou de l'électroménager auprès de fournisseurs locaux vérifiés.",
+    "categories": ["Mobilier", "Décoration", "Électroménager", "Cuisine", "Salon", "Chambre", "Bureau"]
+  },
+  "contact": {
+    "email": "contact@supplylink.ma",
+    "telephone": "+212 6 00 00 00 00",
+    "adresse": "Casablanca, Maroc",
+    "horaires_service_client": "Lundi au vendredi, 9h00 – 18h00",
+    "formulaire_contact": "Disponible sur la page Contact du site (menu principal)"
+  },
+  "paiement": {
+    "modes_disponibles": [
+      {
+        "nom": "Carte bancaire (Stripe)",
+        "description": "Paiement sécurisé par carte Visa, Mastercard ou carte marocaine CMI via Stripe. Le paiement est traité instantanément et votre commande est confirmée immédiatement.",
+        "securite": "Cryptage SSL 256 bits, conformité PCI-DSS"
+      },
+      {
+        "nom": "Cash à la livraison",
+        "description": "Payez en espèces directement au livreur lors de la réception de votre commande. Aucune avance requise."
+      }
+    ],
+    "devise": "Dirham marocain (MAD / dh)",
+    "securite_paiement": "Toutes les transactions sont sécurisées. SupplyLink ne stocke aucune donnée de carte bancaire."
+  },
+  "livraison": {
+    "zones_couvertes": "Toutes les grandes villes du Maroc : Casablanca, Rabat, Marrakech, Fès, Tanger, Agadir, Meknès, Oujda, Kénitra, Tétouan, Salé, El Jadida et environs.",
+    "delai": "Votre commande est livrée après validation et préparation. Un créneau horaire de livraison vous est communiqué par email.",
+    "creneaux": "Les livraisons ont lieu entre 9h00 et 17h00 du lundi au vendredi. Chaque créneau dure 1h30.",
+    "suivi": "Vous recevez un email à chaque étape : confirmation, préparation, expédition (avec créneau), livraison.",
+    "livreurs": "Les livraisons sont effectuées par des livreurs SupplyLink vérifiés et assignés automatiquement selon votre zone."
+  },
+  "commandes": {
+    "processus": [
+      "1. Ajoutez les articles souhaités à votre panier",
+      "2. Renseignez votre adresse de livraison",
+      "3. Choisissez votre mode de paiement",
+      "4. Confirmez votre commande",
+      "5. Recevez un email de confirmation"
+    ],
+    "statuts": {
+      "en_attente": "Commande reçue, en attente de traitement",
+      "en_preparation": "Votre commande est préparée par nos équipes",
+      "expedie": "Commande confiée au livreur, créneau de livraison communiqué",
+      "livre": "Commande livrée avec succès"
+    },
+    "suivi_commande": "Consultez vos commandes dans votre espace client sous l'onglet 'Commandes'."
+  },
+  "retours_litiges": {
+    "politique": "SupplyLink accepte les demandes de retour sous conditions. En cas de problème avec votre commande (article défectueux, non conforme ou manquant), ouvrez un litige depuis votre espace client.",
+    "processus_litige": [
+      "1. Connectez-vous à votre espace client",
+      "2. Allez dans 'Commandes'",
+      "3. Sélectionnez la commande concernée",
+      "4. Cliquez sur 'Signaler un problème'",
+      "5. Notre équipe traite votre demande sous 48h"
+    ],
+    "remboursement": "En cas de litige accepté, le remboursement s'effectue via un code de retrait Cash Plus / Wafa Cash envoyé par email."
+  },
+  "fournisseurs": {
+    "description": "SupplyLink permet aux fournisseurs marocains de référencer et vendre leurs produits sur la plateforme.",
+    "inscription": "Les comptes fournisseurs sont créés par l'administration de SupplyLink. Contactez-nous via le formulaire contact pour soumettre votre candidature.",
+    "avantages": ["Accès à une large base d'acheteurs", "Tableau de bord dédié", "Gestion des articles et commandes", "Système de promotions pour mettre en avant vos produits"],
+    "promotions": "Les fournisseurs peuvent sponsoriser leurs articles via des packs Starter, Pro ou Elite pour les mettre en avant sur la page d'accueil et le catalogue."
+  },
+  "compte": {
+    "creation_client": "Créez votre compte gratuitement via le bouton 'S'inscrire' sur la page de connexion.",
+    "mot_de_passe_oublie": "Contactez le service client via le formulaire de contact pour réinitialiser votre mot de passe.",
+    "modification_profil": "Modifiez vos informations depuis votre espace client, section 'Profil'."
+  },
+  "faq": [
+    {
+      "question": "Comment passer une commande ?",
+      "reponse": "Naviguez dans le catalogue, ajoutez des articles au panier, puis suivez les étapes de paiement. Vous recevrez une confirmation par email."
+    },
+    {
+      "question": "Puis-je annuler ma commande ?",
+      "reponse": "Une commande peut être annulée avant sa mise en préparation. Contactez le service client rapidement via le formulaire de contact."
+    },
+    {
+      "question": "Quel est le délai de livraison ?",
+      "reponse": "Le délai dépend de la disponibilité des articles et de votre localisation. Vous serez notifié par email à chaque étape."
+    },
+    {
+      "question": "Est-ce que SupplyLink livre dans toute le Maroc ?",
+      "reponse": "Nous livrons dans les principales villes du Maroc. Consultez la section livraison pour la liste complète des zones couvertes."
+    },
+    {
+      "question": "Comment devenir fournisseur sur SupplyLink ?",
+      "reponse": "Contactez-nous via le formulaire de contact en précisant votre activité. Notre équipe étudiera votre candidature."
+    },
+    {
+      "question": "Le paiement par carte est-il sécurisé ?",
+      "reponse": "Oui, les paiements sont traités par Stripe, leader mondial du paiement en ligne, avec cryptage SSL 256 bits et conformité PCI-DSS."
+    },
+    {
+      "question": "Comment suivre ma commande ?",
+      "reponse": "Connectez-vous à votre espace client et consultez la section 'Commandes'. Vous recevrez également des emails à chaque changement de statut."
+    }
+  ]
+}
