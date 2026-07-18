@@ -11,7 +11,8 @@ router.post("/", verifyToken, requireRole("fournisseur"), [
   body("pack").isIn(["starter", "pro", "elite"]),
 ], validate, ctrl.create);
 
-router.get("/me",     verifyToken, requireRole("fournisseur"), ctrl.myPromos);
+router.get("/me",          verifyToken, requireRole("fournisseur"), ctrl.myPromos);
+router.post("/verify-stripe", verifyToken, requireRole("fournisseur"), ctrl.verifyPromoPayment);
 router.get("/",       verifyToken, requireRole("admin"),       ctrl.adminList);
 router.delete("/:id", verifyToken, requireRole("admin"),       ctrl.adminCancel);
 

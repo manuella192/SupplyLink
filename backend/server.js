@@ -36,24 +36,35 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
     return res.status(400).send("Webhook signature invalide");
   }
 
-  // ── Paiement commande client (PaymentIntent) ──────────────
-  if (event.type === "payment_intent.succeeded") {
-    const pi      = event.data.object;
-    const orderId = pi.metadata?.orderId;
-    if (orderId) {
-      await db.query(
-        "UPDATE commandes SET statut='en_preparation' WHERE ref=? AND statut='en_attente' AND mode_paiement='stripe'",
-        [orderId]
-      ).catch(console.error);
-    }
-  }
-
-  // ── Paiement promotion fournisseur (Checkout Session) ─────
+  // ── Checkout Session complétée (commandes + promotions) ───
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
-    const promoId = session.metadata?.promoId;
-    if (promoId && session.payment_status === "paid") {
-      // Activer la promo et mettre l'article en avant
+    if (session.payment_status !== "paid") return res.json({ received: true });
+
+    const { type, ref, promoId } = session.metadata || {};
+
+    // Paiement commande client
+    if (type === "order" && ref) {
+      const [result] = await db.query(
+        "UPDATE commandes SET statut='en_preparation' WHERE ref=? AND statut='en_attente' AND mode_paiement='stripe'",
+        [ref]
+      ).catch(() => [{ affectedRows: 0 }]);
+      // affectedRows > 0 → premier à confirmer → on envoie l'email de confirmation
+      if (result?.affectedRows > 0) {
+        const [[cmd]] = await db.query(
+          "SELECT c.total, u.email, u.prenom FROM commandes c JOIN users u ON u.id=c.client_id WHERE c.ref=?",
+          [ref]
+        ).catch(() => [[]]);
+        if (cmd) {
+          const { sendEmail } = require("./services/email.service");
+          sendEmail(cmd.email, "commande_confirmee", { ref, prenom: cmd.prenom, total: Number(cmd.total).toFixed(2) })
+            .catch(console.error);
+        }
+      }
+    }
+
+    // Paiement promotion fournisseur
+    if (promoId) {
       const [[promo]] = await db.query(
         "SELECT article_id FROM promotions WHERE id=?", [promoId]
       ).catch(() => [[]]);
@@ -90,6 +101,7 @@ app.use("/api/avis",       require("./routes/avis.routes"));
 app.use("/api/litiges",    require("./routes/litiges.routes"));
 app.use("/api/promotions", require("./routes/promotions.routes"));
 app.use("/api/users",      require("./routes/users.routes"));
+app.use("/api/admin",      require("./routes/admin.routes"));
 app.use("/api/contact",    require("./routes/contact.routes"));
 app.use("/api/chatbot",   require("./routes/chatbot.routes"));
 
@@ -108,6 +120,11 @@ app.use((err, _req, res, _next) => {
     message: process.env.NODE_ENV === "production" ? "Erreur serveur" : err.message,
   });
 });
+
+// ── Expiration automatique des promotions ─────────────────
+const { expirePromos } = require("./controllers/promotions.controller");
+expirePromos().catch(() => {});
+setInterval(() => expirePromos().catch(() => {}), 60 * 60 * 1000); // toutes les heures
 
 // ── Démarrage ──────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;

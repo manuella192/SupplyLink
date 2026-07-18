@@ -105,4 +105,63 @@ const createLivreur = async (req, res) => {
   }
 };
 
-module.exports = { list, toggleStatut, createFournisseur, createLivreur };
+/* ── Boutique du fournisseur connecté ── */
+const getBoutique = async (req, res) => {
+  const [[b]] = await db.query(
+    `SELECT id, nom, description FROM boutiques WHERE user_id = ?`,
+    [req.user.id]
+  );
+  res.json(b || { nom: "", description: "" });
+};
+
+const updateBoutique = async (req, res) => {
+  const { nom, description } = req.body;
+  await db.query(
+    `UPDATE boutiques SET nom=?, description=? WHERE user_id=?`,
+    [(nom || "").trim(), (description || "").trim() || null, req.user.id]
+  );
+  const [[b]] = await db.query(
+    `SELECT id, nom, description FROM boutiques WHERE user_id=?`,
+    [req.user.id]
+  );
+  res.json(b);
+};
+
+/* ── Mise à jour profil (utilisateur connecté) ── */
+const updateMe = async (req, res) => {
+  const { prenom, nom, telephone, ville, quartier, rue } = req.body;
+  await db.query(
+    `UPDATE users SET prenom=?, nom=?, telephone=?, ville=?, quartier=?, rue=? WHERE id=?`,
+    [
+      (prenom  || "").trim() || null,
+      (nom     || "").trim() || null,
+      (telephone||"").trim() || null,
+      ville    || null,
+      (quartier||"").trim() || null,
+      (rue     ||"").trim() || null,
+      req.user.id,
+    ]
+  );
+  const [[u]] = await db.query(
+    `SELECT id, prenom, nom, email, telephone, ville, quartier, rue, created_at FROM users WHERE id=?`,
+    [req.user.id]
+  );
+  res.json(u);
+};
+
+/* ── Changement de mot de passe ── */
+const updatePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword || newPassword.length < 8)
+    return res.status(400).json({ message: "Données invalides" });
+
+  const [[u]] = await db.query("SELECT password_hash FROM users WHERE id=?", [req.user.id]);
+  const ok = await bcrypt.compare(currentPassword, u.password_hash);
+  if (!ok) return res.status(400).json({ message: "Mot de passe actuel incorrect" });
+
+  const hash = await bcrypt.hash(newPassword, 12);
+  await db.query("UPDATE users SET password_hash=? WHERE id=?", [hash, req.user.id]);
+  res.json({ message: "Mot de passe mis à jour" });
+};
+
+module.exports = { list, toggleStatut, createFournisseur, createLivreur, updateMe, updatePassword, getBoutique, updateBoutique };

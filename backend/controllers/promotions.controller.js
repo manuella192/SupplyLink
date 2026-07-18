@@ -1,5 +1,5 @@
 const db     = require("../config/db");
-const { createPromoCheckoutSession, PACK_PRICES } = require("../services/stripe.service");
+const { createPromoCheckoutSession, retrieveCheckoutSession, PACK_PRICES } = require("../services/stripe.service");
 
 const DUREES = { starter: 7, pro: 30, elite: 60 };
 
@@ -30,7 +30,8 @@ const create = async (req, res) => {
   const promoId = result.insertId;
 
   const base       = process.env.CLIENT_URL || "http://localhost:3000";
-  const successUrl = `${base}/fournisseur/promotions?success=1&promoId=${promoId}`;
+  // {CHECKOUT_SESSION_ID} est remplacé automatiquement par Stripe avec l'ID de session réel
+  const successUrl = `${base}/fournisseur/promotions?success=1&promoId=${promoId}&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl  = `${base}/fournisseur/promotions?cancel=1&promoId=${promoId}`;
 
   const session = await createPromoCheckoutSession(pack, promoId, successUrl, cancelUrl);
@@ -74,4 +75,41 @@ const adminCancel = async (req, res) => {
   res.json({ message: "Promotion annulée" });
 };
 
-module.exports = { create, myPromos, adminList, adminCancel };
+/* ── Vérification paiement promo au retour du Checkout ── */
+const verifyPromoPayment = async (req, res) => {
+  const { sessionId, promoId } = req.body;
+  if (!sessionId || !promoId) return res.status(400).json({ message: "sessionId et promoId requis" });
+
+  const session = await retrieveCheckoutSession(sessionId);
+  if (session.payment_status !== "paid") return res.json({ ok: false });
+
+  const [[promo]] = await db.query("SELECT article_id FROM promotions WHERE id=? AND fournisseur_id=?", [promoId, req.user.id]);
+  if (!promo) return res.json({ ok: false });
+
+  await Promise.all([
+    db.query("UPDATE promotions SET statut='actif' WHERE id=? AND statut='annulé'", [promoId]),
+    db.query("UPDATE articles SET is_promoted=1 WHERE id=?", [promo.article_id]),
+  ]);
+
+  res.json({ ok: true });
+};
+
+/* ── Expiration automatique des promotions périmées ── */
+const expirePromos = async () => {
+  const [result] = await db.query(
+    `UPDATE promotions SET statut='expiré' WHERE statut='actif' AND date_fin < CURDATE()`
+  );
+  if (result.affectedRows > 0) {
+    // Retire le badge "Sponsorisé" des articles qui n'ont plus aucune promo active
+    await db.query(
+      `UPDATE articles a SET is_promoted=0
+       WHERE is_promoted=1
+         AND NOT EXISTS (
+           SELECT 1 FROM promotions p
+           WHERE p.article_id = a.id AND p.statut = 'actif'
+         )`
+    );
+  }
+};
+
+module.exports = { create, myPromos, adminList, adminCancel, verifyPromoPayment, expirePromos };

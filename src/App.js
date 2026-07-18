@@ -21,7 +21,10 @@ import ProductDetail   from "./pages/client/ProductDetail";
 import PanierPage      from "./pages/client/PanierPage";
 import CommandesClient from "./pages/client/CommandesClient";
 import ProfilClient    from "./pages/client/ProfilClient";
-import Contact        from "./pages/client/Contact";
+import Contact          from "./pages/client/Contact";
+import CGV              from "./pages/client/CGV";
+import PolitiqueRetour  from "./pages/client/PolitiqueRetour";
+import MentionsLegales  from "./pages/client/MentionsLegales";
 
 // Pages fournisseur
 import DashboardFournisseur from "./pages/fournisseur/DashboardFournisseur";
@@ -80,7 +83,10 @@ const AppRoutes = () => (
       <Route index element={<Accueil />} />
       <Route path="catalogue" element={<Catalogue />} />
       <Route path="produit/:slug" element={<ProductDetail />} />
-      <Route path="contact" element={<Contact />} />
+      <Route path="contact"           element={<Contact />} />
+      <Route path="cgv"               element={<CGV />} />
+      <Route path="politique-retour"  element={<PolitiqueRetour />} />
+      <Route path="mentions-legales"  element={<MentionsLegales />} />
       <Route path="panier" element={
         <RequireAuth allowedRoles={[ROLES.CLIENT]}>
           <PanierPage />

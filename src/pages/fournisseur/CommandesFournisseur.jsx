@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, Eye, X, Package, Loader } from "lucide-react";
-import { getFournisseurCommandes } from "../../services/commandes.service";
+import { Search, Eye, X, Package, Loader, ChevronRight } from "lucide-react";
+import { getFournisseurCommandes, advanceCommande } from "../../services/commandes.service";
 import "./Fournisseur.css";
 
 const BASE_URL = process.env.REACT_APP_API_URL?.replace("/api", "") || "http://localhost:5000";
 const IMG_PH   = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Crect fill='%23f1f5f9' width='56' height='56' rx='6'/%3E%3C/svg%3E";
 
 const STATUS = {
-  en_attente:     { label: "En attente",     cls: "badge-pending"   },
-  en_preparation: { label: "En préparation", cls: "badge-process"   },
-  expedie:        { label: "Expédié",        cls: "badge-shipped"   },
-  livre:          { label: "Livré",          cls: "badge-delivered" },
+  en_attente:     { label: "En attente",     cls: "badge-pending",   nextLabel: "Valider"  },
+  en_preparation: { label: "En préparation", cls: "badge-process",   nextLabel: "Expédier" },
+  expedie:        { label: "Expédié",        cls: "badge-shipped",   nextLabel: null       },
+  livre:          { label: "Livré",          cls: "badge-delivered", nextLabel: null       },
+  retourné:       { label: "Retourné",       cls: "badge-blocked",   nextLabel: null       },
 };
 
 const CommandesFournisseur = () => {
@@ -27,6 +28,14 @@ const CommandesFournisseur = () => {
     } catch { /* état vide */ }
     finally { setLoading(false); }
   }, []);
+
+  const handleAdvance = async (id) => {
+    try {
+      const { data } = await advanceCommande(id);
+      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, statut: data.statut } : o));
+      if (detail?.id === id) setDetail((d) => ({ ...d, statut: data.statut }));
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -85,9 +94,16 @@ const CommandesFournisseur = () => {
                     <td><span className={`badge ${s.cls}`}>{s.label}</span></td>
                     <td className="fn-td-price">{Number(o.total).toLocaleString()} dh</td>
                     <td>
-                      <button className="btn btn-ghost" style={{ padding: "5px 10px" }} onClick={() => setDetail(o)}>
-                        <Eye size={14} />
-                      </button>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button className="btn btn-ghost" style={{ padding: "5px 8px" }} onClick={() => setDetail(o)}>
+                          <Eye size={14} />
+                        </button>
+                        {s.nextLabel && (
+                          <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => handleAdvance(o.id)}>
+                            {s.nextLabel} <ChevronRight size={12} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -154,9 +170,14 @@ const CommandesFournisseur = () => {
               <span style={{ color: "var(--color-primary)" }}>{Number(detail.total).toLocaleString()} dh</span>
             </div>
 
-            <button className="btn btn-outline" style={{ width: "100%", marginTop: 20 }} onClick={() => setDetail(null)}>
-              Fermer
-            </button>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDetail(null)}>Fermer</button>
+              {STATUS[detail.statut]?.nextLabel && (
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => handleAdvance(detail.id)}>
+                  {STATUS[detail.statut].nextLabel} <ChevronRight size={14} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

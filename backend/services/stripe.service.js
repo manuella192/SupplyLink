@@ -15,15 +15,26 @@ const PACK_LABELS = {
   elite:   "Elite — 40 000 acheteurs / 60 jours",
 };
 
-/* ── PaymentIntent pour les commandes clients ── */
-const createOrderPaymentIntent = async (totalDh, orderId) => {
-  return stripe.paymentIntents.create({
-    amount:   Math.round(totalDh * 100),
-    currency: "mad",
-    metadata: { orderId: String(orderId) },
-    automatic_payment_methods: { enabled: true },
+/* ── Checkout Session pour les commandes clients ── */
+const createOrderCheckoutSession = async (totalDh, ref, cmdId, successUrl, cancelUrl) => {
+  return stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    line_items: [{
+      price_data: {
+        currency:     "mad",
+        product_data: { name: `Commande SupplyLink — ${ref}` },
+        unit_amount:  Math.round(totalDh * 100),
+      },
+      quantity: 1,
+    }],
+    mode:        "payment",
+    success_url: successUrl,
+    cancel_url:  cancelUrl,
+    metadata:    { ref, cmdId: String(cmdId), type: "order" },
   });
 };
+
+const retrieveCheckoutSession = (sessionId) => stripe.checkout.sessions.retrieve(sessionId);
 
 /* ── Checkout Session pour les promotions fournisseur ── */
 const createPromoCheckoutSession = async (pack, promoId, successUrl, cancelUrl) => {
@@ -57,7 +68,8 @@ const constructWebhookEvent = (payload, sig) =>
   stripe.webhooks.constructEvent(payload, sig, process.env.STRIPE_WEBHOOK_SECRET);
 
 module.exports = {
-  createOrderPaymentIntent,
+  createOrderCheckoutSession,
+  retrieveCheckoutSession,
   createPromoCheckoutSession,
   refundPaymentIntent,
   constructWebhookEvent,

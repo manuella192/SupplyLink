@@ -1,63 +1,82 @@
-import React from "react";
-import { Users, ShoppingBag, TrendingUp, AlertTriangle, ArrowRight } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Users, ShoppingBag, TrendingUp, AlertTriangle, ArrowRight, Loader2, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import api from "../../services/api";
 import "./admin.css";
 
-const KPIS = [
-  { label: "Utilisateurs",    value: "1 284", delta: "+23 cette semaine", icon: Users,        color: "var(--color-primary)" },
-  { label: "Commandes",       value: "342",   delta: "+14 aujourd'hui",   icon: ShoppingBag,  color: "var(--color-green)"   },
-  { label: "Chiffre d'aff.", value: "94 200 dh", delta: "+8% ce mois",  icon: TrendingUp,   color: "#8b5cf6"              },
-  { label: "Litiges ouverts", value: "7",     delta: "2 urgents",         icon: AlertTriangle,color: "var(--color-amber)"  },
-];
+const fmt = (n) => Number(n || 0).toLocaleString("fr-MA");
 
-const RECENT_ORDERS = [
-  { id: "CMD-101", client: "Hamza Berrada",   montant: "496 dh",    statut: "En attente",    date: "09/07/2026" },
-  { id: "CMD-102", client: "Sara Alaoui",     montant: "1 899 dh",  statut: "En préparation",date: "08/07/2026" },
-  { id: "CMD-103", client: "Youssef Tazi",    montant: "2 319 dh",  statut: "Expédié",       date: "07/07/2026" },
-  { id: "CMD-104", client: "Nadia El Fassi",  montant: "255 dh",    statut: "Livré",         date: "05/07/2026" },
-];
-
-const STATUS_CL = {
-  "En attente":    "badge-pending",
-  "En préparation":"badge-process",
-  "Expédié":       "badge-shipped",
-  "Livré":         "badge-delivered",
+const STATUT_LABEL = {
+  en_attente:     "En attente",
+  en_preparation: "En préparation",
+  expedie:        "Expédié",
+  livre:          "Livré",
+  retourné:       "Retourné",
+};
+const STATUT_COLOR = {
+  en_attente:     "#f59e0b",
+  en_preparation: "#3b82f6",
+  expedie:        "#8b5cf6",
+  livre:          "#10b981",
+  retourné:       "#ef4444",
+};
+const STATUT_CLS = {
+  en_attente:     "badge-pending",
+  en_preparation: "badge-process",
+  expedie:        "badge-shipped",
+  livre:          "badge-delivered",
+  retourné:       "badge-blocked",
 };
 
-const WEEKLY = [
-  { day: "Lun", val: 4800  },
-  { day: "Mar", val: 7200  },
-  { day: "Mer", val: 6100  },
-  { day: "Jeu", val: 9400  },
-  { day: "Ven", val: 8700  },
-  { day: "Sam", val: 12300 },
-  { day: "Dim", val: 5600  },
-];
+const DAY_FR = { Mon:"Lun", Tue:"Mar", Wed:"Mer", Thu:"Jeu", Fri:"Ven", Sat:"Sam", Sun:"Dim" };
+
+const fmtBar = (n) => {
+  if (n >= 1000) return (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + "k";
+  return String(Math.round(n));
+};
 
 const BarChart = ({ data }) => {
-  const max   = Math.max(...data.map((d) => d.val));
-  const H     = 120;
-  const BAR_W = 28;
-  const GAP   = 12;
-  const W     = data.length * (BAR_W + GAP) - GAP;
+  if (!data?.length) return null;
+  const vals  = data.map((d) => parseFloat(d.val));
+  const max   = Math.max(...vals, 1);
+  const H     = 110;
+  const BAR_W = 32;
+  const GAP   = 10;
+  const LABEL_H = 18;
+  const VAL_H   = 16;
+  const TOP_PAD = 20;
+  const W = data.length * (BAR_W + GAP) - GAP;
+  const TOTAL_H = TOP_PAD + H + LABEL_H;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H + 32}`} style={{ width: "100%", maxWidth: 360, height: "auto" }}>
+    <svg viewBox={`0 0 ${W} ${TOTAL_H}`} width={W}
+      style={{ maxWidth: "100%", height: "auto", display: "block", overflow: "visible" }}>
       {data.map((d, i) => {
-        const barH = Math.max(4, (d.val / max) * H);
+        const val  = parseFloat(d.val);
+        const barH = val > 0 ? Math.max(8, (val / max) * H) : 3;
         const x    = i * (BAR_W + GAP);
-        const y    = H - barH;
-        const isToday = i === 5;
+        const y    = TOP_PAD + H - barH;
+        const label = DAY_FR[d.day] || d.day;
+        const isToday = i === data.length - 1;
         return (
-          <g key={d.day}>
+          <g key={i}>
+            {/* barre */}
             <rect x={x} y={y} width={BAR_W} height={barH} rx="5"
-              fill={isToday ? "var(--color-primary)" : "var(--color-primary)"} fillOpacity={isToday ? 1 : 0.35} />
-            <text x={x + BAR_W / 2} y={H + 18} textAnchor="middle" fontSize="10" fill="var(--color-text-3)"
-              fontFamily="inherit">{d.day}</text>
-            {isToday && (
-              <text x={x + BAR_W / 2} y={y - 6} textAnchor="middle" fontSize="9" fill="var(--color-primary)"
-                fontWeight="700" fontFamily="inherit">{(d.val / 1000).toFixed(1)}k</text>
+              fill="var(--color-primary)" fillOpacity={isToday ? 1 : (val > 0 ? 0.45 : 0.15)} />
+            {/* montant au-dessus si > 0 */}
+            {val > 0 && (
+              <text x={x + BAR_W / 2} y={y - 5} textAnchor="middle" fontSize="9"
+                fill={isToday ? "var(--color-primary)" : "var(--color-text-3)"}
+                fontWeight={isToday ? "700" : "500"} fontFamily="inherit">
+                {fmtBar(val)}
+              </text>
             )}
+            {/* label jour */}
+            <text x={x + BAR_W / 2} y={TOP_PAD + H + LABEL_H - 2} textAnchor="middle"
+              fontSize="10" fill={isToday ? "var(--color-primary)" : "var(--color-text-3)"}
+              fontWeight={isToday ? "700" : "400"} fontFamily="inherit">
+              {label}
+            </text>
           </g>
         );
       })}
@@ -66,12 +85,80 @@ const BarChart = ({ data }) => {
 };
 
 const DashboardAdmin = () => {
-  const navigate = useNavigate();
+  const navigate       = useNavigate();
+  const [stats, setStats]   = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/admin/stats")
+      .then(({ data }) => setStats(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="ad-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
+      <Loader2 size={28} style={{ animation: "spin 1s linear infinite", color: "var(--color-primary)" }} />
+    </div>
+  );
+
+  if (!stats) return (
+    <div className="ad-page">
+      <p style={{ color: "var(--color-text-3)", fontSize: 14 }}>Impossible de charger les statistiques.</p>
+    </div>
+  );
+
+  const { users, commandes, ca, litiges, retournes, repartition, weekly, recentCmds } = stats;
+
+  const caEvolLabel = ca.evolPct !== null
+    ? (ca.evolPct >= 0 ? `+${ca.evolPct}% ce mois` : `${ca.evolPct}% ce mois`)
+    : "Premier mois";
+
+  const KPIS = [
+    {
+      label: "Utilisateurs",
+      value: fmt(users.total),
+      delta: `+${users.deltaWeek} cette semaine`,
+      icon:  Users,
+      color: "var(--color-primary)",
+    },
+    {
+      label: "Commandes",
+      value: fmt(commandes.total),
+      delta: commandes.deltaToday > 0 ? `+${commandes.deltaToday} aujourd'hui` : "Aucune aujourd'hui",
+      icon:  ShoppingBag,
+      color: "var(--color-green)",
+    },
+    {
+      label: "Chiffre d'aff.",
+      value: fmt(ca.total) + " dh",
+      delta: caEvolLabel,
+      icon:  TrendingUp,
+      color: "#8b5cf6",
+    },
+    {
+      label: "Litiges actifs",
+      value: String(litiges.ouverts),
+      delta: litiges.urgents > 0 ? `${litiges.urgents} urgent(s) (+3j)` : "Aucun urgent",
+      icon:  AlertTriangle,
+      color: "var(--color-amber)",
+    },
+    {
+      label: "Retours",
+      value: String(retournes ?? 0),
+      delta: (retournes ?? 0) > 0 ? "Commandes retournées" : "Aucun retour",
+      icon:  RotateCcw,
+      color: "var(--color-red)",
+    },
+  ];
+
+  const weeklyTotal = weekly.reduce((s, d) => s + parseFloat(d.val), 0);
 
   return (
     <div className="ad-page">
       <h1 className="ad-page-title">Tableau de bord</h1>
 
+      {/* KPIs */}
       <div className="ad-kpis">
         {KPIS.map(({ label, value, delta, icon: Icon, color }) => (
           <div key={label} className="ad-kpi">
@@ -93,17 +180,16 @@ const DashboardAdmin = () => {
         {/* Bar chart */}
         <div className="ad-section">
           <div className="ad-section-head">
-            <h2>Ventes de la semaine</h2>
-            <span style={{ fontSize: 12, color: "var(--color-text-3)", fontWeight: 600 }}>Samedi = aujourd'hui</span>
+            <h2>Ventes - 7 derniers jours</h2>
+            <span style={{ fontSize: 12, color: "var(--color-text-3)", fontWeight: 600 }}>
+              {fmt(weeklyTotal)} dh
+            </span>
           </div>
           <div style={{ padding: "20px 20px 8px" }}>
-            <BarChart data={WEEKLY} />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 12 }}>
-              <span style={{ color: "var(--color-text-3)" }}>Total semaine</span>
-              <strong style={{ color: "var(--color-text-1)" }}>
-                {WEEKLY.reduce((s, d) => s + d.val, 0).toLocaleString()} dh
-              </strong>
-            </div>
+            {weekly.length > 0
+              ? <BarChart data={weekly} />
+              : <p style={{ fontSize: 13, color: "var(--color-text-3)" }}>Aucune vente cette semaine.</p>
+            }
           </div>
         </div>
 
@@ -111,22 +197,23 @@ const DashboardAdmin = () => {
         <div className="ad-section">
           <div className="ad-section-head"><h2>Répartition commandes</h2></div>
           <div style={{ padding: "20px" }}>
-            {[
-              { label: "En attente",     pct: 22, cls: "badge-pending",   color: "#f59e0b" },
-              { label: "En préparation", pct: 35, cls: "badge-process",   color: "#3b82f6" },
-              { label: "Expédiées",      pct: 28, cls: "badge-shipped",   color: "#8b5cf6" },
-              { label: "Livrées",        pct: 15, cls: "badge-delivered", color: "#10b981" },
-            ].map(({ label, pct, color }) => (
-              <div key={label} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 13 }}>
-                  <span style={{ color: "var(--color-text-2)", fontWeight: 500 }}>{label}</span>
-                  <span style={{ fontWeight: 700, color: "var(--color-text-1)" }}>{pct}%</span>
+            {repartition.length === 0
+              ? <p style={{ fontSize: 13, color: "var(--color-text-3)" }}>Aucune commande.</p>
+              : repartition.map(({ statut, pct }) => (
+                <div key={statut} style={{ marginBottom: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 13 }}>
+                    <span style={{ color: "var(--color-text-2)", fontWeight: 500 }}>
+                      {STATUT_LABEL[statut] || statut}
+                    </span>
+                    <span style={{ fontWeight: 700, color: "var(--color-text-1)" }}>{pct}%</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: "var(--color-border-lt)", overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: 3, transition: "width .6s",
+                      background: STATUT_COLOR[statut] || "var(--color-primary)" }} />
+                  </div>
                 </div>
-                <div style={{ height: 6, borderRadius: 3, background: "var(--color-border-lt)", overflow: "hidden" }}>
-                  <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width .6s" }} />
-                </div>
-              </div>
-            ))}
+              ))
+            }
           </div>
         </div>
       </div>
@@ -140,24 +227,33 @@ const DashboardAdmin = () => {
             Tout voir <ArrowRight size={14} />
           </button>
         </div>
-        <div className="ad-table-wrap">
-          <table className="ad-table">
-            <thead>
-              <tr>{["ID","Client","Montant","Date","Statut"].map((h) => <th key={h}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {RECENT_ORDERS.map((o) => (
-                <tr key={o.id}>
-                  <td className="ad-td-bold">{o.id}</td>
-                  <td>{o.client}</td>
-                  <td className="ad-td-price">{o.montant}</td>
-                  <td className="ad-td-muted">{o.date}</td>
-                  <td><span className={`badge ${STATUS_CL[o.statut] || "badge-pending"}`}>{o.statut}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {recentCmds.length === 0
+          ? <p style={{ padding: "20px", fontSize: 13, color: "var(--color-text-3)" }}>Aucune commande pour le moment.</p>
+          : (
+            <div className="ad-table-wrap">
+              <table className="ad-table">
+                <thead>
+                  <tr>{["Réf","Client","Montant","Date","Statut"].map((h) => <th key={h}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {recentCmds.map((o) => (
+                    <tr key={o.id}>
+                      <td className="ad-td-bold">{o.ref}</td>
+                      <td>{o.prenom_livr} {o.nom_livr}</td>
+                      <td className="ad-td-price">{fmt(o.total)} dh</td>
+                      <td className="ad-td-muted">{new Date(o.created_at).toLocaleDateString("fr-MA")}</td>
+                      <td>
+                        <span className={`badge ${STATUT_CLS[o.statut] || "badge-pending"}`}>
+                          {STATUT_LABEL[o.statut] || o.statut}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
       </div>
     </div>
   );

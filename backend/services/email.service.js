@@ -71,6 +71,50 @@ const TEMPLATES = {
       <p>Montant remboursé : <strong>${d.montant} dh</strong></p>
     `,
   }),
+  litige_resolu_stripe: (d) => ({
+    subject: `Litige ${d.ref} — Remboursement Stripe initié`,
+    html: `
+      <h2 style="color:#2cb34a">Remboursement initié</h2>
+      <p>Bonjour ${d.prenom},</p>
+      <p>Votre litige <strong>${d.ref}</strong> a été validé.</p>
+      <p>Le remboursement de <strong>${d.montant} dh</strong> a été initié sur votre carte bancaire.</p>
+      <p>Il apparaîtra sur votre relevé sous 3 à 5 jours ouvrés.</p>
+    `,
+  }),
+  litige_livreur_pickup: (d) => ({
+    subject: `[Action requise] Récupération article — Litige ${d.ref}`,
+    html: `
+      <h2 style="color:#f59e0b">Récupération d'article à effectuer</h2>
+      <p>Bonjour,</p>
+      <p>Un litige <strong>${d.ref}</strong> a été validé par l'administration.</p>
+      <p><strong>Client :</strong> ${d.client_nom}<br>
+         <strong>Adresse :</strong> ${d.adresse}, ${d.ville}<br>
+         <strong>Téléphone :</strong> ${d.telephone}</p>
+      <p>Merci de vous rendre chez le client pour récupérer l'article retourné, puis de marquer la récupération dans votre espace livreur.</p>
+    `,
+  }),
+  litige_client_recupere: (d) => ({
+    subject: `Litige ${d.ref} — Article récupéré`,
+    html: `
+      <h2 style="color:#009fe3">Votre retour a été pris en charge</h2>
+      <p>Bonjour ${d.prenom},</p>
+      <p>Notre livreur a bien récupéré l'article de la commande <strong>${d.commande_ref}</strong>.</p>
+      <p>${d.mode_paiement === "stripe"
+        ? "Le remboursement sur votre carte sera effectué dès validation de notre équipe."
+        : "Vous recevrez très prochainement un code de retrait pour récupérer votre remboursement."
+      }</p>
+    `,
+  }),
+  litige_admin_action: (d) => ({
+    subject: `[Action requise] Litige ${d.ref} — article récupéré`,
+    html: `
+      <h2 style="color:#009fe3">Article récupéré — votre action est requise</h2>
+      <p>Le livreur a confirmé la récupération de l'article pour le litige <strong>${d.ref}</strong> (commande ${d.commande_ref}).</p>
+      <p><strong>Client :</strong> ${d.client_nom}<br>
+         <strong>Mode de paiement :</strong> ${d.mode_paiement === "stripe" ? "Carte bancaire (remboursement Stripe)" : "Cash (saisir un code de retrait)"}</p>
+      <p>Connectez-vous à l'espace admin pour clôturer ce litige.</p>
+    `,
+  }),
   bienvenue: (d) => ({
     subject: "Bienvenue sur SupplyLink !",
     html: `

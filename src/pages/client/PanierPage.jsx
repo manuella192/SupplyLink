@@ -52,6 +52,15 @@ const PanierPage = () => {
         modePaiement: payment,
       };
       const { data } = await createCommande(payload);
+
+      if (payment === "stripe" && data.checkoutUrl) {
+        // Stripe : on redirige vers la page de paiement hébergée par Stripe.
+        // Le panier sera vidé au retour sur /commandes?stripe=ok
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
+      // Cash : confirmation immédiate
       setOrderRef(data.ref);
       clearCart();
       setStep(3);
@@ -235,7 +244,11 @@ const PanierPage = () => {
             onClick={handleConfirm}
           >
             {saving ? <Loader size={16} className="spin" /> : <CheckCircle size={16} />}
-            {saving ? "Traitement en cours…" : "Confirmer la commande"}
+            {saving
+              ? "Traitement en cours…"
+              : payment === "stripe"
+                ? "Payer avec Stripe →"
+                : "Confirmer la commande"}
           </button>
         </div>
       )}

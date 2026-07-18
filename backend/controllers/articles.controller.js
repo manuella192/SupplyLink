@@ -6,7 +6,7 @@ const homepage = async (req, res) => {
     SELECT a.id, a.nom, a.prix, a.prix_barre, a.stock, a.categorie, a.image,
            a.note_moy, a.nb_avis, a.is_promoted, b.nom AS boutique
     FROM articles a
-    JOIN boutiques b ON b.user_id = a.fournisseur_id
+    LEFT JOIN boutiques b ON b.user_id = a.fournisseur_id
     WHERE a.statut = 'actif'`;
 
   const [[sponsorises], [topNotes], [nouveautes], [tendances]] = await Promise.all([
@@ -44,7 +44,7 @@ const list = async (req, res) => {
             a.note_moy, a.nb_avis, a.is_promoted,
             b.nom AS boutique
      FROM articles a
-     JOIN boutiques b ON b.user_id = a.fournisseur_id
+     LEFT JOIN boutiques b ON b.user_id = a.fournisseur_id
      ${whereStr}
      ORDER BY ${orderBy}
      LIMIT ? OFFSET ?`,
@@ -63,7 +63,7 @@ const getOne = async (req, res) => {
   const [rows] = await db.query(
     `SELECT a.*, b.nom AS boutique, b.description AS boutique_desc
      FROM articles a
-     JOIN boutiques b ON b.user_id = a.fournisseur_id
+     LEFT JOIN boutiques b ON b.user_id = a.fournisseur_id
      WHERE a.id = ? AND a.statut = 'actif'`,
     [req.params.id]
   );
@@ -147,7 +147,7 @@ const adminListAll = async (req, res) => {
     `SELECT a.id, a.nom, a.prix, a.stock, a.categorie, a.image, a.statut, a.created_at,
             b.nom AS fournisseur
      FROM articles a
-     JOIN boutiques b ON b.user_id = a.fournisseur_id
+     LEFT JOIN boutiques b ON b.user_id = a.fournisseur_id
      ${whereStr}
      ORDER BY a.created_at DESC
      LIMIT ? OFFSET ?`,

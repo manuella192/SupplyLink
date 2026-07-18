@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Package, Star, RotateCcw, CheckCircle, Clock, Truck, MapPin, Loader } from "lucide-react";
-import { getMyCommandes, createAvis, createLitige } from "../../services/commandes.service";
+import { Package, Star, RotateCcw, CheckCircle, Clock, Truck, MapPin, Loader, CreditCard } from "lucide-react";
+import { getMyCommandes, createAvis, createLitige, verifyStripePayment } from "../../services/commandes.service";
+import { useCart } from "../../contexts/CartContext";
 import "./CommandesClient.css";
 
 const BASE_URL = process.env.REACT_APP_API_URL?.replace("/api", "") || "http://localhost:5000";
@@ -10,6 +11,7 @@ const STATUS_MAP = {
   en_preparation: { label: "En préparation",className: "badge-process",   icon: CheckCircle },
   expedie:        { label: "Expédiée",      className: "badge-shipped",   icon: Truck       },
   livre:          { label: "Livrée",        className: "badge-delivered", icon: MapPin      },
+  retourné:       { label: "Retournée",     className: "badge-blocked",   icon: RotateCcw   },
 };
 
 const StarPicker = ({ value, onChange }) => (
@@ -30,12 +32,11 @@ const ReviewModal = ({ order, onClose, onDone }) => {
 
   const submit = async () => {
     if (rating === 0) return;
+    const articleId = order.items[0]?.article_id;
+    if (!articleId) return;
     setSaving(true);
     try {
-      const articleId = order.items[0]?.article_id;
-      if (articleId) {
-        await createAvis({ commandeId: order.id, articleId, note: rating, commentaire: comment });
-      }
+      await createAvis({ commandeId: order.id, articleId, note: rating, commentaire: comment });
       setDone(true);
       onDone?.();
     } catch { /* ignore */ }
@@ -146,10 +147,13 @@ const ReturnModal = ({ order, onClose, onDone }) => {
 };
 
 const CommandesClient = () => {
-  const [orders, setOrders]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [reviewOrder, setReview]  = useState(null);
-  const [returnOrder, setReturn]  = useState(null);
+  const { clearCart } = useCart();
+  const [orders, setOrders]           = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [reviewOrder, setReview]      = useState(null);
+  const [returnOrder, setReturn]      = useState(null);
+  const [stripeSuccess, setStripeOk]  = useState(false);
+  const [stripeRef, setStripeRef]     = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -161,6 +165,30 @@ const CommandesClient = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // Retour depuis Stripe Checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe") !== "ok") return;
+
+    const ref       = params.get("ref") || "";
+    const sessionId = params.get("session_id") || "";
+
+    // Nettoie l'URL immédiatement
+    window.history.replaceState({}, "", window.location.pathname);
+    clearCart();
+    setStripeOk(true);
+    setStripeRef(ref);
+
+    // Vérification côté serveur pour s'assurer que le statut est bien mis à jour
+    if (sessionId) {
+      verifyStripePayment(sessionId)
+        .then(() => load())
+        .catch(() => {});
+    } else {
+      load();
+    }
+  }, [clearCart, load]);
+
   if (loading) return (
     <div style={{ display: "flex", justifyContent: "center", padding: "60px 0" }}>
       <Loader size={28} style={{ color: "var(--color-primary)" }} className="spin" />
@@ -170,6 +198,20 @@ const CommandesClient = () => {
   return (
     <div className="cmd-page">
       <h1 className="cmd-title">Mes commandes</h1>
+
+      {stripeSuccess && (
+        <div className="cmd-stripe-ok">
+          <CreditCard size={22} />
+          <div>
+            <strong>Paiement confirmé !</strong>
+            <span>
+              {stripeRef ? `Commande ${stripeRef} enregistrée` : "Votre commande a bien été enregistrée"}{" "}
+              — vous recevrez un email de confirmation.
+            </span>
+          </div>
+          <button className="cmd-stripe-close" onClick={() => setStripeOk(false)}>✕</button>
+        </div>
+      )}
 
       {orders.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-text-3)" }}>

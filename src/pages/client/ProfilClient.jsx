@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { User, MapPin, Lock, ChevronRight, Save, LogOut } from "lucide-react";
+import { User, MapPin, Lock, LogOut, Save, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import api from "../../services/api";
 import "./ProfilClient.css";
 
 const VILLES = [
@@ -9,173 +10,257 @@ const VILLES = [
   "Meknès","Oujda","Kenitra","Tétouan","Salé","El Jadida",
 ];
 
+const fmtDate = (iso) => {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("fr-MA", { year: "numeric", month: "long" });
+};
+
+const Alert = ({ type, msg }) => msg ? (
+  <div className={`profil-alert ${type}`}>
+    {type === "success" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+    {msg}
+  </div>
+) : null;
+
 const ProfilClient = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
-  const [section, setSection] = useState("menu");
-  const [saved, setSaved] = useState(false);
+  const [section, setSection] = useState("info");
+  const [saving,  setSaving]  = useState(false);
+  const [alert,   setAlert]   = useState({ type: "", msg: "" });
+  const [showPwd, setShowPwd] = useState({ cur: false, nxt: false, cfm: false });
 
   const [info, setInfo] = useState({
-    prenom:   user?.prenom   || "",
-    nom:      user?.nom      || "",
-    email:    user?.email    || "",
-    telephone:user?.telephone|| "",
-    ville:    user?.ville    || "",
-    quartier: user?.adresse?.quartier || "",
-    rue:      user?.adresse?.rue      || "",
+    prenom:    user?.prenom    || "",
+    nom:       user?.nom       || "",
+    telephone: user?.telephone || "",
   });
 
-  const [pwd, setPwd] = useState({ current:"", next:"", confirm:"" });
+  const [addr, setAddr] = useState({
+    ville:    user?.ville    || "",
+    quartier: user?.quartier || "",
+    rue:      user?.rue      || "",
+  });
 
-  const handleSaveInfo = (e) => {
-    e.preventDefault();
-    // TODO: appeler API PATCH /users/me
-    setSaved(true);
-    setTimeout(() => { setSaved(false); setSection("menu"); }, 1500);
+  const [pwd, setPwd] = useState({ current: "", newPwd: "", confirm: "" });
+
+  const flash = (type, msg) => {
+    setAlert({ type, msg });
+    setTimeout(() => setAlert({ type: "", msg: "" }), 4000);
   };
 
-  const handleLogout = () => { logout(); navigate("/login"); };
+  const saveInfo = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.patch("/users/me", { ...info });
+      updateUser(data);
+      flash("success", "Informations mises à jour.");
+    } catch (err) {
+      flash("error", err.response?.data?.message || "Erreur lors de la sauvegarde.");
+    } finally { setSaving(false); }
+  };
 
-  const MENU = [
-    { key:"info",     icon:User,    title:"Mes informations",   sub:"Nom, email, téléphone" },
-    { key:"adresse",  icon:MapPin,  title:"Adresse de livraison",sub:"Ville, quartier, rue" },
-    { key:"security", icon:Lock,    title:"Sécurité",           sub:"Changer le mot de passe" },
+  const saveAddr = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.patch("/users/me", { ...addr });
+      updateUser(data);
+      flash("success", "Adresse mise à jour.");
+    } catch (err) {
+      flash("error", err.response?.data?.message || "Erreur lors de la sauvegarde.");
+    } finally { setSaving(false); }
+  };
+
+  const savePwd = async (e) => {
+    e.preventDefault();
+    if (pwd.newPwd !== pwd.confirm) return flash("error", "Les mots de passe ne correspondent pas.");
+    setSaving(true);
+    try {
+      await api.patch("/users/me/password", { currentPassword: pwd.current, newPassword: pwd.newPwd });
+      flash("success", "Mot de passe mis à jour.");
+      setPwd({ current: "", newPwd: "", confirm: "" });
+    } catch (err) {
+      flash("error", err.response?.data?.message || "Mot de passe actuel incorrect.");
+    } finally { setSaving(false); }
+  };
+
+  const NAV = [
+    { key: "info",     icon: User,   label: "Informations",   desc: "Nom, email, téléphone"   },
+    { key: "adresse",  icon: MapPin, label: "Adresse",        desc: "Ville, quartier, rue"     },
+    { key: "security", icon: Lock,   label: "Sécurité",       desc: "Mot de passe"             },
   ];
 
-  return (
-    <div className="pc-wrap">
-      {section !== "menu" && (
-        <button className="pc-back" onClick={() => setSection("menu")}>
-          ‹ Retour
-        </button>
-      )}
+  const pwdOk = pwd.newPwd.length >= 8;
+  const pwdMatch = pwd.newPwd === pwd.confirm && pwd.confirm.length > 0;
 
-      {section === "menu" && (
-        <div className="pc-menu-card">
-          {/* Avatar + nom */}
-          <div className="pc-avatar-block">
-            <div className="pc-avatar">{(user?.prenom?.[0] || "U").toUpperCase()}</div>
-            <div>
-              <h2 className="pc-name">{user?.prenom} {user?.nom}</h2>
-              <p className="pc-email">{user?.email}</p>
+  return (
+    <div className="profil-page">
+
+      {/* ── Sidebar ── */}
+      <aside className="profil-sidebar">
+        <div className="profil-sidebar-card">
+          <div className="profil-sidebar-banner" />
+          <div className="profil-sidebar-identity">
+            <div className="profil-sidebar-avatar">
+              {(user?.prenom?.[0] || "U").toUpperCase()}
             </div>
+            <p className="profil-sidebar-name">{user?.prenom} {user?.nom}</p>
+            <p className="profil-sidebar-email">{user?.email}</p>
+            <span className="profil-role-badge">Client</span>
+            {user?.created_at && (
+              <p className="profil-since">Membre depuis {fmtDate(user.created_at)}</p>
+            )}
           </div>
 
-          {/* Menu */}
-          <div className="pc-menu-list">
-            {MENU.map(({ key, icon: Icon, title, sub }) => (
-              <button key={key} className="pc-menu-item" onClick={() => setSection(key)}>
-                <div className="pc-menu-icon"><Icon size={18} /></div>
-                <div className="pc-menu-text">
-                  <span className="pc-menu-title">{title}</span>
-                  <span className="pc-menu-sub">{sub}</span>
+          <nav className="profil-nav">
+            {NAV.map(({ key, icon: Icon, label, desc }) => (
+              <button key={key} className={`profil-nav-item ${section === key ? "active" : ""}`}
+                onClick={() => { setSection(key); setAlert({ type: "", msg: "" }); }}>
+                <div className="profil-nav-icon"><Icon size={16} /></div>
+                <div className="profil-nav-texts">
+                  <span className="profil-nav-label">{label}</span>
+                  <span className="profil-nav-desc">{desc}</span>
                 </div>
-                <ChevronRight size={16} className="pc-menu-arrow" />
               </button>
             ))}
-          </div>
+          </nav>
 
-          <button className="pc-logout" onClick={handleLogout}>
-            <LogOut size={16} /> Déconnexion
+          <button className="profil-logout-btn" onClick={() => { logout(); navigate("/login"); }}>
+            <LogOut size={15} /> Déconnexion
           </button>
         </div>
-      )}
+      </aside>
 
-      {/* ── Informations personnelles ── */}
-      {section === "info" && (
-        <div className="pc-form-card">
-          <h2 className="pc-section-title">Mes informations</h2>
-          <form onSubmit={handleSaveInfo} className="pc-form">
-            <div className="pc-form-row">
-              <div className="form-group">
-                <label className="form-label">Prénom</label>
-                <input className="form-input" value={info.prenom}
-                  onChange={(e) => setInfo({ ...info, prenom: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nom</label>
-                <input className="form-input" value={info.nom}
-                  onChange={(e) => setInfo({ ...info, nom: e.target.value })} />
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Email</label>
-              <input className="form-input" type="email" value={info.email}
-                onChange={(e) => setInfo({ ...info, email: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Téléphone</label>
-              <input className="form-input" value={info.telephone}
-                onChange={(e) => setInfo({ ...info, telephone: e.target.value })} />
-            </div>
-            <button type="submit" className={`btn btn-primary pc-save-btn ${saved ? "saved" : ""}`}>
-              <Save size={16} /> {saved ? "Enregistré !" : "Enregistrer"}
-            </button>
-          </form>
-        </div>
-      )}
+      {/* ── Contenu ── */}
+      <div className="profil-content">
 
-      {/* ── Adresse ── */}
-      {section === "adresse" && (
-        <div className="pc-form-card">
-          <h2 className="pc-section-title">Adresse de livraison</h2>
-          <form onSubmit={handleSaveInfo} className="pc-form">
-            <div className="form-group">
-              <label className="form-label">Ville</label>
-              <select className="form-input" value={info.ville}
-                onChange={(e) => setInfo({ ...info, ville: e.target.value })}>
-                <option value="">Sélectionner</option>
-                {VILLES.map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
+        {/* ── Informations personnelles ── */}
+        {section === "info" && (
+          <>
+            <div className="profil-section-header">
+              <h1 className="profil-section-title">Informations personnelles</h1>
+              <p className="profil-section-sub">Gérez votre identité et vos coordonnées.</p>
             </div>
-            <div className="pc-form-row">
-              <div className="form-group">
-                <label className="form-label">Quartier</label>
-                <input className="form-input" value={info.quartier}
-                  onChange={(e) => setInfo({ ...info, quartier: e.target.value })}
-                  placeholder="Ex: Maarif" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Rue / N°</label>
-                <input className="form-input" value={info.rue}
-                  onChange={(e) => setInfo({ ...info, rue: e.target.value })}
-                  placeholder="Ex: Rue Hassan II, 12" />
-              </div>
+            <div className="profil-card">
+              <Alert type={alert.type} msg={alert.msg} />
+              <form onSubmit={saveInfo} className="profil-form">
+                <div className="profil-form-row">
+                  <div className="form-group">
+                    <label className="form-label">Prénom</label>
+                    <input className="form-input" value={info.prenom}
+                      onChange={(e) => setInfo({ ...info, prenom: e.target.value })} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Nom</label>
+                    <input className="form-input" value={info.nom}
+                      onChange={(e) => setInfo({ ...info, nom: e.target.value })} required />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-input" value={user?.email || ""} disabled
+                    style={{ opacity: .6, cursor: "not-allowed" }} />
+                  <p className="profil-field-helper">L'adresse email ne peut pas être modifiée.</p>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Téléphone</label>
+                  <input className="form-input" placeholder="+212 6XX XXX XXX" value={info.telephone}
+                    onChange={(e) => setInfo({ ...info, telephone: e.target.value })} />
+                </div>
+                <button type="submit" className="btn btn-primary profil-save-btn" disabled={saving}>
+                  {saving ? "Enregistrement…" : <><Save size={15} /> Enregistrer</>}
+                </button>
+              </form>
             </div>
-            <button type="submit" className={`btn btn-primary pc-save-btn ${saved ? "saved" : ""}`}>
-              <Save size={16} /> {saved ? "Enregistré !" : "Enregistrer"}
-            </button>
-          </form>
-        </div>
-      )}
+          </>
+        )}
 
-      {/* ── Sécurité ── */}
-      {section === "security" && (
-        <div className="pc-form-card">
-          <h2 className="pc-section-title">Sécurité</h2>
-          <form onSubmit={(e) => { e.preventDefault(); setSaved(true); setTimeout(() => { setSaved(false); setSection("menu"); }, 1500); }} className="pc-form">
-            <div className="form-group">
-              <label className="form-label">Mot de passe actuel</label>
-              <input className="form-input" type="password" placeholder="••••••••"
-                value={pwd.current} onChange={(e) => setPwd({ ...pwd, current: e.target.value })} />
+        {/* ── Adresse ── */}
+        {section === "adresse" && (
+          <>
+            <div className="profil-section-header">
+              <h1 className="profil-section-title">Adresse de livraison</h1>
+              <p className="profil-section-sub">Utilisée par défaut lors de vos commandes.</p>
             </div>
-            <div className="form-group">
-              <label className="form-label">Nouveau mot de passe</label>
-              <input className="form-input" type="password" placeholder="Minimum 8 caractères"
-                value={pwd.next} onChange={(e) => setPwd({ ...pwd, next: e.target.value })} />
+            <div className="profil-card">
+              <Alert type={alert.type} msg={alert.msg} />
+              <form onSubmit={saveAddr} className="profil-form">
+                <div className="form-group">
+                  <label className="form-label">Ville</label>
+                  <select className="form-input" value={addr.ville}
+                    onChange={(e) => setAddr({ ...addr, ville: e.target.value })}>
+                    <option value="">Sélectionner une ville</option>
+                    {VILLES.map((v) => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="profil-form-row">
+                  <div className="form-group">
+                    <label className="form-label">Quartier</label>
+                    <input className="form-input" placeholder="Ex : Maarif" value={addr.quartier}
+                      onChange={(e) => setAddr({ ...addr, quartier: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Rue / Numéro</label>
+                    <input className="form-input" placeholder="Ex : Rue Hassan II, 12" value={addr.rue}
+                      onChange={(e) => setAddr({ ...addr, rue: e.target.value })} />
+                  </div>
+                </div>
+                <button type="submit" className="btn btn-primary profil-save-btn" disabled={saving}>
+                  {saving ? "Enregistrement…" : <><Save size={15} /> Enregistrer</>}
+                </button>
+              </form>
             </div>
-            <div className="form-group">
-              <label className="form-label">Confirmer</label>
-              <input className="form-input" type="password" placeholder="Répéter le nouveau mot de passe"
-                value={pwd.confirm} onChange={(e) => setPwd({ ...pwd, confirm: e.target.value })} />
+          </>
+        )}
+
+        {/* ── Sécurité ── */}
+        {section === "security" && (
+          <>
+            <div className="profil-section-header">
+              <h1 className="profil-section-title">Sécurité</h1>
+              <p className="profil-section-sub">Modifiez votre mot de passe de connexion.</p>
             </div>
-            <button type="submit" className={`btn btn-primary pc-save-btn ${saved ? "saved" : ""}`}
-              disabled={!pwd.current || !pwd.next || pwd.next !== pwd.confirm}>
-              <Save size={16} /> {saved ? "Mis à jour !" : "Mettre à jour"}
-            </button>
-          </form>
-        </div>
-      )}
+            <div className="profil-card">
+              <Alert type={alert.type} msg={alert.msg} />
+              <form onSubmit={savePwd} className="profil-form">
+                {[
+                  { key: "current", label: "Mot de passe actuel",  field: "current", show: "cur" },
+                  { key: "newPwd",  label: "Nouveau mot de passe", field: "newPwd",  show: "nxt" },
+                  { key: "confirm", label: "Confirmer",            field: "confirm", show: "cfm" },
+                ].map(({ key, label, field, show }) => (
+                  <div className="form-group" key={key}>
+                    <label className="form-label">{label}</label>
+                    <div style={{ position: "relative" }}>
+                      <input className="form-input" style={{ paddingRight: 40 }}
+                        type={showPwd[show] ? "text" : "password"} placeholder="••••••••"
+                        value={pwd[field]}
+                        onChange={(e) => setPwd({ ...pwd, [field]: e.target.value })} />
+                      <button type="button" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-3)", padding: 0 }}
+                        onClick={() => setShowPwd((s) => ({ ...s, [show]: !s[show] }))}>
+                        {showPwd[show] ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="profil-pwd-checks">
+                  <div className={`profil-pwd-check ${pwdOk ? "ok" : "fail"}`}>
+                    <CheckCircle size={12} /> Minimum 8 caractères
+                  </div>
+                  <div className={`profil-pwd-check ${pwdMatch ? "ok" : "fail"}`}>
+                    <CheckCircle size={12} /> Les mots de passe correspondent
+                  </div>
+                </div>
+                <button type="submit" className="btn btn-primary profil-save-btn"
+                  disabled={saving || !pwd.current || !pwdOk || !pwdMatch}>
+                  {saving ? "Mise à jour…" : <><Lock size={15} /> Mettre à jour</>}
+                </button>
+              </form>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Zap, CheckCircle, TrendingUp, Eye, Users, Loader, X, ExternalLink, AlertCircle } from "lucide-react";
 import { getMyArticles, getMyStats } from "../../services/articles.service";
-import { createPromoCheckout, getMyPromos } from "../../services/commandes.service";
+import { createPromoCheckout, getMyPromos, verifyPromoPayment } from "../../services/commandes.service";
 import "./Fournisseur.css";
 
 const PACKS = [
@@ -66,13 +66,28 @@ const PromotionsFournisseur = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  // Nettoyer les query params après affichage du résultat
+  // Retour depuis Stripe : vérification paiement + activation promo
   useEffect(() => {
-    if (success || cancelled) {
+    if (!success) return;
+    const sessionId = params.get("session_id");
+    const promoId   = params.get("promoId");
+    if (sessionId && promoId) {
+      verifyPromoPayment(sessionId, promoId)
+        .then(() => load())
+        .catch(() => {});
+    }
+    // Nettoyer l'URL après 4s
+    const t = setTimeout(() => navigate("/fournisseur/promotions", { replace: true }), 4000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [success]);
+
+  useEffect(() => {
+    if (cancelled) {
       const t = setTimeout(() => navigate("/fournisseur/promotions", { replace: true }), 4000);
       return () => clearTimeout(t);
     }
-  }, [success, cancelled, navigate]);
+  }, [cancelled, navigate]);
 
   const openModal = (p) => { setPack(p); setArtId(""); setErr(""); };
   const closeModal = () => { setPack(null); setErr(""); };

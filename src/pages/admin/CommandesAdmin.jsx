@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Search, Eye, X, Loader } from "lucide-react";
-import { getCommandesAdmin, advanceCommande } from "../../services/commandes.service";
+import { getCommandesAdmin } from "../../services/commandes.service";
 import "./admin.css";
 
 const BASE_URL = process.env.REACT_APP_API_URL?.replace("/api", "") || "http://localhost:5000";
 const IMG_PH   = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Crect fill='%23f1f5f9' width='44' height='44' rx='4'/%3E%3C/svg%3E";
 
 const STATUTS = {
-  en_attente:     { label: "En attente",     cls: "badge-pending",   next: "en_preparation", nextLabel: "Valider"   },
-  en_preparation: { label: "En préparation", cls: "badge-process",   next: "expedie",         nextLabel: "Expédier"  },
-  expedie:        { label: "Expédié",        cls: "badge-shipped",   next: null,              nextLabel: null        },
-  livre:          { label: "Livré",          cls: "badge-delivered", next: null,              nextLabel: null        },
+  en_attente:     { label: "En attente",     cls: "badge-pending"   },
+  en_preparation: { label: "En préparation", cls: "badge-process"   },
+  expedie:        { label: "Expédié",        cls: "badge-shipped"   },
+  livre:          { label: "Livré",          cls: "badge-delivered" },
+  retourné:       { label: "Retourné",       cls: "badge-blocked"   },
 };
 
 const CommandesAdmin = () => {
@@ -33,14 +34,6 @@ const CommandesAdmin = () => {
   }, [filter, search]);
 
   useEffect(() => { load(); }, [load]);
-
-  const handleAdvance = async (id) => {
-    try {
-      const { data } = await advanceCommande(id);
-      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, statut: data.statut } : o));
-      if (detail?.id === id) setDetail((d) => ({ ...d, statut: data.statut }));
-    } catch { /* ignore */ }
-  };
 
   const imgSrc = (img) => {
     if (!img) return IMG_PH;
@@ -74,7 +67,7 @@ const CommandesAdmin = () => {
           <div className="ad-table-wrap">
             <table className="ad-table">
               <thead>
-                <tr>{["Réf.","Client","Montant","Mode","Date","Statut","Action"].map((h) => <th key={h}>{h}</th>)}</tr>
+                <tr>{["Réf.","Client","Montant","Mode","Date","Statut",""].map((h) => <th key={h}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
@@ -90,14 +83,7 @@ const CommandesAdmin = () => {
                       <td className="ad-td-muted">{new Date(o.created_at).toLocaleDateString("fr-MA")}</td>
                       <td><span className={`badge ${s.cls}`}>{s.label}</span></td>
                       <td>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button className="btn btn-ghost" style={{ padding: "5px 8px" }} onClick={() => setDetail(o)}><Eye size={14} /></button>
-                          {s.next && (
-                            <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => handleAdvance(o.id)}>
-                              {s.nextLabel}
-                            </button>
-                          )}
-                        </div>
+                        <button className="btn btn-ghost" style={{ padding: "5px 8px" }} onClick={() => setDetail(o)}><Eye size={14} /></button>
                       </td>
                     </tr>
                   );
@@ -150,11 +136,6 @@ const CommandesAdmin = () => {
 
             <div className="ad-modal-actions">
               <button className="btn btn-outline" onClick={() => setDetail(null)}>Fermer</button>
-              {STATUTS[detail.statut]?.next && (
-                <button className="btn btn-primary" onClick={() => handleAdvance(detail.id)}>
-                  {STATUTS[detail.statut].nextLabel}
-                </button>
-              )}
             </div>
           </div>
         </div>

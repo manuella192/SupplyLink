@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, Eye, CheckCircle, XCircle, X, AlertTriangle, Loader, Calendar } from "lucide-react";
-import { getLitigesAdmin, resolveLitige, rejectLitige } from "../../services/commandes.service";
+import { Search, Eye, CheckCircle, XCircle, X, AlertTriangle, Loader, Calendar, Package, RotateCcw } from "lucide-react";
+import { getLitigesAdmin, validateLitige, resolveLitige, rejectLitige } from "../../services/commandes.service";
 import "./admin.css";
 
 const RAISONS = {
@@ -11,18 +11,18 @@ const RAISONS = {
 };
 
 const STATUS_INFO = {
-  ouvert:   { cls: "badge-pending",   label: "Ouvert"   },
-  en_cours: { cls: "badge-process",   label: "En cours" },
-  résolu:   { cls: "badge-delivered", label: "Résolu"   },
-  rejeté:   { cls: "badge-blocked",   label: "Rejeté"   },
+  ouvert:    { cls: "badge-pending",   label: "Ouvert"      },
+  en_cours:  { cls: "badge-process",   label: "En cours"    },
+  validé:    { cls: "badge-process",   label: "Validé"      },
+  recuperé:  { cls: "badge-shipped",   label: "Récupéré"    },
+  résolu:    { cls: "badge-delivered", label: "Résolu"      },
+  rejeté:    { cls: "badge-blocked",   label: "Rejeté"      },
 };
 
-const daysBetween = (date1, date2) => {
-  if (!date1 || !date2) return null;
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
-  if (isNaN(d1) || isNaN(d2)) return null;
-  return Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
+const daysBetween = (d1, d2) => {
+  if (!d1 || !d2) return null;
+  const diff = Math.abs(new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24);
+  return isNaN(diff) ? null : Math.round(diff);
 };
 
 const LitigesAdmin = () => {
@@ -45,17 +45,29 @@ const LitigesAdmin = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleResolve = async () => {
-    if (!code.trim()) return;
+  const openDetail = (l) => { setDetail(l); setCode(""); };
+
+  const handleValidate = async () => {
     setActing(true);
     try {
-      await resolveLitige(detail.id, code.trim());
+      await validateLitige(detail.id);
+      await load();
+      setDetail(null);
+    } catch (err) { alert(err.response?.data?.message || "Erreur"); }
+    finally { setActing(false); }
+  };
+
+  const handleResolve = async () => {
+    const isStripe = detail.mode_paiement === "stripe";
+    if (!isStripe && !code.trim()) return;
+    setActing(true);
+    try {
+      await resolveLitige(detail.id, isStripe ? undefined : code.trim());
       await load();
       setDetail(null);
       setCode("");
-    } catch (err) {
-      alert(err.response?.data?.message || "Erreur");
-    } finally { setActing(false); }
+    } catch (err) { alert(err.response?.data?.message || "Erreur"); }
+    finally { setActing(false); }
   };
 
   const handleReject = async () => {
@@ -70,9 +82,7 @@ const LitigesAdmin = () => {
 
   const filtered = litiges.filter((l) => {
     const q = `${l.ref} ${l.client} ${l.commande_ref}`.toLowerCase();
-    const matchQ = q.includes(search.toLowerCase());
-    const matchF = filter === "all" || l.statut === filter;
-    return matchQ && matchF;
+    return q.includes(search.toLowerCase()) && (filter === "all" || l.statut === filter);
   });
 
   return (
@@ -100,11 +110,11 @@ const LitigesAdmin = () => {
           <div className="ad-table-wrap">
             <table className="ad-table">
               <thead>
-                <tr>{["Réf.","Commande","Client","Raison","Montant","Livré le","Demande","Jours","Statut",""].map((h, i) => <th key={i}>{h}</th>)}</tr>
+                <tr>{["Réf.","Commande","Client","Raison","Montant","Paiement","Jours","Statut",""].map((h, i) => <th key={i}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={10} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-3)" }}>Aucun litige</td></tr>
+                  <tr><td colSpan={9} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-3)" }}>Aucun litige</td></tr>
                 ) : filtered.map((l) => {
                   const si   = STATUS_INFO[l.statut] || STATUS_INFO.ouvert;
                   const days = daysBetween(l.date_livraison, l.created_at);
@@ -115,20 +125,17 @@ const LitigesAdmin = () => {
                       <td>{l.client}</td>
                       <td style={{ fontSize: 12 }}>{RAISONS[l.raison] || l.raison}</td>
                       <td className="ad-td-price">{Number(l.total).toLocaleString()} dh</td>
-                      <td className="ad-td-muted">{l.date_livraison ? new Date(l.date_livraison).toLocaleDateString("fr-MA") : "—"}</td>
-                      <td className="ad-td-muted">{new Date(l.created_at).toLocaleDateString("fr-MA")}</td>
+                      <td className="ad-td-muted">{l.mode_paiement === "stripe" ? "Carte" : "Cash"}</td>
                       <td>
                         {days !== null ? (
-                          <span style={{
-                            fontWeight: 700, fontSize: 12,
-                            color: days <= 2 ? "var(--color-green)" : days <= 5 ? "var(--color-amber)" : "var(--color-red)"
-                          }}>{days}j</span>
+                          <span style={{ fontWeight: 700, fontSize: 12, color: days <= 2 ? "var(--color-green)" : days <= 5 ? "var(--color-amber)" : "var(--color-red)" }}>
+                            {days}j
+                          </span>
                         ) : "—"}
                       </td>
                       <td><span className={`badge ${si.cls}`}>{si.label}</span></td>
                       <td>
-                        <button className="btn btn-ghost" style={{ padding: "5px 8px" }}
-                          onClick={() => { setDetail(l); setCode(""); }}>
+                        <button className="btn btn-ghost" style={{ padding: "5px 8px" }} onClick={() => openDetail(l)}>
                           <Eye size={14} />
                         </button>
                       </td>
@@ -158,7 +165,9 @@ const LitigesAdmin = () => {
               ["Email",      detail.email],
               ["Raison",     RAISONS[detail.raison] || detail.raison],
               ["Montant",    `${Number(detail.total).toLocaleString()} dh`],
+              ["Paiement",   detail.mode_paiement === "stripe" ? "Carte bancaire" : "Cash"],
               ["Statut",     STATUS_INFO[detail.statut]?.label || detail.statut],
+              ...(detail.livreur_nom ? [["Livreur", detail.livreur_nom]] : []),
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", gap: 12, padding: "9px 0", borderBottom: "1px solid var(--color-border-lt)" }}>
                 <span style={{ minWidth: 90, fontSize: 12, fontWeight: 700, color: "var(--color-text-3)", textTransform: "uppercase" }}>{k}</span>
@@ -166,12 +175,12 @@ const LitigesAdmin = () => {
               </div>
             ))}
 
-            {/* Dates et délai */}
+            {/* Délais */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, margin: "14px 0 4px", background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "14px" }}>
               {[
-                { label: "Livré le",      val: detail.date_livraison ? new Date(detail.date_livraison).toLocaleDateString("fr-MA") : "—" },
-                { label: "Demande le",    val: new Date(detail.created_at).toLocaleDateString("fr-MA") },
-                { label: "Délai",         val: daysBetween(detail.date_livraison, detail.created_at) !== null ? `${daysBetween(detail.date_livraison, detail.created_at)} jour(s)` : "—" },
+                { label: "Livré le",   val: detail.date_livraison ? new Date(detail.date_livraison).toLocaleDateString("fr-MA") : "—" },
+                { label: "Demande",    val: new Date(detail.created_at).toLocaleDateString("fr-MA") },
+                { label: "Délai",      val: daysBetween(detail.date_livraison, detail.created_at) != null ? `${daysBetween(detail.date_livraison, detail.created_at)}j` : "—" },
               ].map(({ label, val }) => (
                 <div key={label} style={{ textAlign: "center" }}>
                   <Calendar size={14} style={{ color: "var(--color-text-3)", marginBottom: 4 }} />
@@ -185,27 +194,54 @@ const LitigesAdmin = () => {
               "{detail.description}"
             </div>
 
+            {/* Code retrait déjà attribué */}
             {detail.code_retrait && (
               <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-md)", padding: "12px 14px", marginBottom: 8 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: "var(--color-green)", marginBottom: 4 }}>CODE DE RETRAIT</p>
                 <p style={{ fontSize: 18, fontWeight: 900, color: "#15803d", letterSpacing: 2 }}>{detail.code_retrait}</p>
-                <p style={{ fontSize: 11, color: "var(--color-text-3)", marginTop: 4 }}>Cash Plus / Wafa Cash</p>
               </div>
             )}
 
-            {(detail.statut === "ouvert" || detail.statut === "en_cours") && (
+            {/* ── Étape 1 : Admin valide le litige (ouvert) ── */}
+            {detail.statut === "ouvert" && (
+              <div className="ad-modal-actions">
+                <button className="btn btn-danger" disabled={acting} onClick={handleReject}>
+                  {acting ? <Loader size={13} className="spin" /> : <XCircle size={14} />} Rejeter
+                </button>
+                <button className="btn btn-primary" disabled={acting} onClick={handleValidate}>
+                  {acting ? <Loader size={13} className="spin" /> : <CheckCircle size={14} />} Valider — notifier livreur
+                </button>
+              </div>
+            )}
+
+            {/* ── Étape 2 : En attente de récupération par le livreur ── */}
+            {detail.statut === "validé" && (
+              <div style={{ background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "var(--radius-md)", padding: "12px 14px", marginTop: 8, fontSize: 13, color: "#92400e" }}>
+                <Package size={14} style={{ display: "inline", marginRight: 6 }} />
+                En attente de récupération par <strong>{detail.livreur_nom || "le livreur"}</strong>.
+              </div>
+            )}
+
+            {/* ── Étape 3 : Livreur a récupéré → admin clôture ── */}
+            {detail.statut === "recuperé" && (
               <>
-                <div className="form-group" style={{ margin: "8px 0 0" }}>
-                  <label className="form-label">Code retrait (Cash Plus / Wafa Cash)</label>
-                  <input className="form-input" placeholder="Ex: CP-XXXXX-MA" value={code}
-                    onChange={(e) => setCode(e.target.value)} />
+                <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "var(--radius-md)", padding: "12px 14px", marginTop: 8, fontSize: 13, color: "#0369a1" }}>
+                  <RotateCcw size={14} style={{ display: "inline", marginRight: 6 }} />
+                  Article récupéré par le livreur. {detail.mode_paiement === "stripe" ? "Cliquez pour rembourser automatiquement via Stripe." : "Saisissez le code de retrait à communiquer au client."}
                 </div>
+                {detail.mode_paiement !== "stripe" && (
+                  <div className="form-group" style={{ margin: "12px 0 0" }}>
+                    <label className="form-label">Code de retrait (Cash Plus / Wafa Cash)</label>
+                    <input className="form-input" placeholder="Ex: CP-XXXXX-MA"
+                      value={code} onChange={(e) => setCode(e.target.value)} />
+                  </div>
+                )}
                 <div className="ad-modal-actions">
-                  <button className="btn btn-danger" disabled={acting} onClick={handleReject}>
-                    {acting ? <Loader size={13} className="spin" /> : <XCircle size={14} style={{ marginRight: 4 }} />} Rejeter
-                  </button>
-                  <button className="btn btn-primary" disabled={!code.trim() || acting} onClick={handleResolve}>
-                    {acting ? <Loader size={13} className="spin" /> : <CheckCircle size={14} style={{ marginRight: 4 }} />} Résoudre + remboursement
+                  <button className="btn btn-primary"
+                    disabled={acting || (detail.mode_paiement !== "stripe" && !code.trim())}
+                    onClick={handleResolve}>
+                    {acting ? <Loader size={13} className="spin" /> : <CheckCircle size={14} />}
+                    {detail.mode_paiement === "stripe" ? "Rembourser via Stripe" : "Valider le retrait"}
                   </button>
                 </div>
               </>

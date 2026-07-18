@@ -18,10 +18,11 @@ router.post("/", verifyToken, requireRole("client"), [
 ], validate, ctrl.create);
 
 router.get("/me",               verifyToken, requireRole("client"),           ctrl.myOrders);
+router.post("/verify-stripe",   verifyToken, requireRole("client"),           ctrl.verifyStripePayment);
 router.get("/livreur",          verifyToken, requireRole("livreur"),           ctrl.livreurOrders);
 router.get("/fournisseur",      verifyToken, requireRole("fournisseur"),       ctrl.fournisseurOrders);
 router.get("/fournisseur/stats",verifyToken, requireRole("fournisseur"),       ctrl.fournisseurStats);
 router.get("/",                 verifyToken, requireRole("admin"),             ctrl.adminList);
-router.patch("/:id/advance",    verifyToken, requireRole("admin","livreur"),   ctrl.advance);
+router.patch("/:id/advance",    verifyToken, requireRole("fournisseur","livreur"), ctrl.advance);
 
 module.exports = router;

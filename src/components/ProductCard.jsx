@@ -48,9 +48,7 @@ const ProductCard = ({ product, onClick }) => {
         {category && <span className="pc-category">{category}</span>}
         <h3 className="pc-name">{name}</h3>
 
-        {rating > 0 && (
-          <StarRating rating={rating} count={reviewCount} />
-        )}
+        <StarRating rating={rating} count={reviewCount ?? 0} />
 
         <div className="pc-price-row">
           <span className="pc-price">{price} <span className="pc-currency">dh</span></span>

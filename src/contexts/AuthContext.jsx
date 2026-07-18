@@ -83,6 +83,14 @@ export const AuthProvider = ({ children }) => {
     clearSession();
   }, []);
 
+  const updateUser = useCallback((patch) => {
+    setUser((prev) => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem("sl_user", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   // Basculer entre rôle client et fournisseur (si l'utilisateur a les deux)
   const switchRole = useCallback((role) => {
     if (!user?.roles?.includes(role)) return;
@@ -97,7 +105,7 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider value={{
       user, activeRole, loading, error,
       isAuthenticated, hasRole,
-      login, register, logout, switchRole,
+      login, register, logout, updateUser, switchRole,
     }}>
       {children}
     </AuthContext.Provider>

@@ -11,10 +11,16 @@ router.post("/", verifyToken, requireRole("client"), [
   body("description").trim().notEmpty().isLength({ max: 2000 }),
 ], validate, ctrl.create);
 
-router.get("/",          verifyToken, requireRole("admin"), ctrl.adminList);
-router.patch("/:id/resolve", verifyToken, requireRole("admin"), [
-  body("codeRetrait").trim().notEmpty(),
+// Admin
+router.get("/",                  verifyToken, requireRole("admin"),   ctrl.adminList);
+router.patch("/:id/validate",    verifyToken, requireRole("admin"),   ctrl.adminValidate);
+router.patch("/:id/resolve",     verifyToken, requireRole("admin"), [
+  body("codeRetrait").optional().trim(),
 ], validate, ctrl.resolve);
-router.patch("/:id/reject",  verifyToken, requireRole("admin"), ctrl.reject);
+router.patch("/:id/reject",      verifyToken, requireRole("admin"),   ctrl.reject);
+
+// Livreur
+router.get("/livreur",           verifyToken, requireRole("livreur"), ctrl.livreurList);
+router.patch("/:id/recupere",    verifyToken, requireRole("livreur"), ctrl.livreurRecupere);
 
 module.exports = router;

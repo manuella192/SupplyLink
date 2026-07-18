@@ -277,10 +277,9 @@ const ClientLayout = () => {
           <div className="cl-footer-col">
             <h4 className="cl-footer-col-title">Aide & Informations</h4>
             <ul className="cl-footer-links">
-              <li><Link to="/contact">Service client</Link></li>
-              <li><a href="#">Conditions générales de vente</a></li>
-              <li><a href="#">Politique de retour</a></li>
-              <li><a href="#">Mentions légales</a></li>
+              <li><Link to="/cgv">Conditions générales de vente</Link></li>
+              <li><Link to="/politique-retour">Politique de retour</Link></li>
+              <li><Link to="/mentions-legales">Mentions légales</Link></li>
             </ul>
           </div>
 

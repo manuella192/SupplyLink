@@ -6,6 +6,17 @@ const { requireRole } = require("../middleware/roles");
 const { body } = require("express-validator");
 const { validate } = require("../middleware/validate");
 
+router.get   ("/me/boutique",  verifyToken, requireRole("fournisseur"), ctrl.getBoutique);
+router.patch ("/me/boutique",  verifyToken, requireRole("fournisseur"), [
+  body("nom").trim().notEmpty().withMessage("Nom de boutique requis"),
+], validate, ctrl.updateBoutique);
+
+router.patch("/me",          verifyToken, ctrl.updateMe);
+router.patch("/me/password", verifyToken, [
+  body("currentPassword").notEmpty(),
+  body("newPassword").isLength({ min: 8 }),
+], validate, ctrl.updatePassword);
+
 router.get("/",              verifyToken, requireRole("admin"), ctrl.list);
 router.patch("/:id/toggle",  verifyToken, requireRole("admin"), ctrl.toggleStatut);
 router.post("/fournisseur",  verifyToken, requireRole("admin"), [

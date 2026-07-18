@@ -1,6 +1,6 @@
 const db     = require("../config/db");
-const { sendEmail }              = require("../services/email.service");
-const { createOrderPaymentIntent } = require("../services/stripe.service");
+const { sendEmail }                                        = require("../services/email.service");
+const { createOrderCheckoutSession, retrieveCheckoutSession } = require("../services/stripe.service");
 
 const genRef = () => "SL-" + Math.random().toString(36).slice(2, 8).toUpperCase();
 
@@ -25,21 +25,14 @@ const create = async (req, res) => {
   }
 
   const ref = genRef();
-  let stripeClientSecret = null;
-
-  if (modePaiement === "stripe") {
-    const pi = await createOrderPaymentIntent(total, ref);
-    stripeClientSecret = pi.client_secret;
-  }
 
   const conn = await db.getConnection();
   await conn.beginTransaction();
   try {
     const [cmd] = await conn.query(
-      `INSERT INTO commandes (ref, client_id, prenom_livr, nom_livr, telephone_livr, ville_livr, adresse_livr, mode_paiement, total, stripe_pi_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ref, clientId, adresse.prenom, adresse.nom, adresse.telephone, adresse.ville, adresse.adresse,
-       modePaiement, total, stripeClientSecret ? stripeClientSecret.split("_secret")[0] : null]
+      `INSERT INTO commandes (ref, client_id, prenom_livr, nom_livr, telephone_livr, ville_livr, adresse_livr, mode_paiement, total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ref, clientId, adresse.prenom, adresse.nom, adresse.telephone, adresse.ville, adresse.adresse, modePaiement, total]
     );
     const cmdId = cmd.insertId;
 
@@ -57,9 +50,27 @@ const create = async (req, res) => {
     conn.release();
 
     const [[{ email, prenom }]] = await db.query("SELECT email, prenom FROM users WHERE id=?", [clientId]);
-    sendEmail(email, "commande_confirmee", { ref, prenom, total: total.toFixed(2) }).catch(() => {});
 
-    res.status(201).json({ ref, cmdId, total, stripeClientSecret });
+    // Email de confirmation : uniquement pour cash (Stripe → envoyé après paiement confirmé)
+    if (modePaiement === "cash") {
+      sendEmail(email, "commande_confirmee", { ref, prenom, total: total.toFixed(2) }).catch(() => {});
+    }
+
+    // Pour paiement cash → confirmation directe
+    // Pour paiement stripe → on crée la Checkout Session et on renvoie l'URL
+    let checkoutUrl = null;
+    if (modePaiement === "stripe") {
+      const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+      const session = await createOrderCheckoutSession(
+        total, ref, cmdId,
+        `${clientUrl}/commandes?stripe=ok&ref=${ref}&session_id={CHECKOUT_SESSION_ID}`,
+        `${clientUrl}/`
+      );
+      checkoutUrl = session.url;
+      await db.query("UPDATE commandes SET stripe_pi_id=? WHERE id=?", [session.id, cmdId]);
+    }
+
+    res.status(201).json({ ref, cmdId, total, checkoutUrl });
   } catch (e) {
     await conn.rollback();
     conn.release();
@@ -80,7 +91,7 @@ const myOrders = async (req, res) => {
 
   for (const cmd of rows) {
     const [items] = await db.query(
-      `SELECT ci.nom_article, ci.prix_unitaire, ci.quantite, a.image
+      `SELECT ci.article_id, ci.nom_article, ci.prix_unitaire, ci.quantite, a.image
        FROM commande_items ci
        LEFT JOIN articles a ON a.id = ci.article_id
        WHERE ci.commande_id = ?`,
@@ -148,6 +159,13 @@ const adminList = async (req, res) => {
 };
 
 /* ── Auto-assignation livreur + créneau horaire ── */
+
+// Créneaux fixes : 09:00 | 10:30 | 12:00 | 13:30 | 15:00
+const SLOT_MINS = [9*60, 10*60+30, 12*60, 13*60+30, 15*60];
+const BUFFER_MIN = 60; // délai minimum (en min) entre maintenant et la livraison
+const pad2 = (n) => String(n).padStart(2, "0");
+const isWeekend = (d) => d.getDay() === 0 || d.getDay() === 6; // 0=dim, 6=sam
+
 const assignLivreur = async (commandeId) => {
   const [livreurs] = await db.query(
     `SELECT u.id FROM users u
@@ -161,39 +179,53 @@ const assignLivreur = async (commandeId) => {
     return null;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  let selectedId = null;
-  let slotIndex  = 0;
-  let delivDate  = today;
+  const now    = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
 
-  for (const l of livreurs) {
-    const [[{ cnt }]] = await db.query(
-      `SELECT COUNT(*) AS cnt FROM commandes WHERE livreur_id=? AND DATE(heure_livraison)=?`,
-      [l.id, today]
-    );
-    if (Number(cnt) < 5) { selectedId = l.id; slotIndex = Number(cnt); break; }
+  // Parcourt les jours ouvrables jusqu'à trouver un créneau libre
+  const cursor = new Date(now);
+  for (let attempt = 0; attempt < 30; attempt++) {
+    if (isWeekend(cursor)) { cursor.setDate(cursor.getDate() + 1); continue; }
+
+    const isToday = cursor.toDateString() === now.toDateString();
+    const dateStr = `${cursor.getFullYear()}-${pad2(cursor.getMonth()+1)}-${pad2(cursor.getDate())}`;
+
+    for (const l of livreurs) {
+      const [taken] = await db.query(
+        `SELECT heure_livraison FROM commandes WHERE livreur_id=? AND DATE(heure_livraison)=?`,
+        [l.id, dateStr]
+      );
+
+      // Extrait les minutes des créneaux déjà pris (sans dépendance timezone)
+      const takenMins = new Set(taken.map((r) => {
+        const t = String(r.heure_livraison).split(" ")[1] || "00:00";
+        const [hh, mm] = t.split(":").map(Number);
+        return hh * 60 + (mm || 0);
+      }));
+
+      for (const slotMin of SLOT_MINS) {
+        // Aujourd'hui : ignorer les créneaux passés ou trop proches
+        if (isToday && slotMin < nowMin + BUFFER_MIN) continue;
+        // Ignorer les créneaux déjà pris pour ce livreur
+        if (takenMins.has(slotMin)) continue;
+
+        // Créneau trouvé → on l'assigne
+        const heureLivraison = `${dateStr} ${pad2(Math.floor(slotMin/60))}:${pad2(slotMin%60)}:00`;
+        await db.query(
+          "UPDATE commandes SET statut='expedie', livreur_id=?, heure_livraison=? WHERE id=?",
+          [l.id, heureLivraison, commandeId]
+        );
+        return heureLivraison;
+      }
+    }
+
+    // Aucun créneau disponible ce jour → jour suivant
+    cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Tous pleins aujourd'hui → demain, premier livreur, créneau 0
-  if (!selectedId) {
-    const tmrw = new Date(); tmrw.setDate(tmrw.getDate() + 1);
-    delivDate  = tmrw.toISOString().slice(0, 10);
-    selectedId = livreurs[0].id;
-    slotIndex  = 0;
-  }
-
-  // 9h00 + n × 90 min  (5 créneaux sur 9h→16h30)
-  const totalMin = 9 * 60 + slotIndex * 90;
-  const h = String(Math.floor(totalMin / 60)).padStart(2, "0");
-  const m = String(totalMin % 60).padStart(2, "0");
-  const heureLivraison = `${delivDate} ${h}:${m}:00`;
-
-  await db.query(
-    "UPDATE commandes SET statut='expedie', livreur_id=?, heure_livraison=? WHERE id=?",
-    [selectedId, heureLivraison, commandeId]
-  );
-
-  return heureLivraison;
+  // Fallback : aucun livreur dispo dans les 30 jours
+  await db.query("UPDATE commandes SET statut='expedie' WHERE id=?", [commandeId]);
+  return null;
 };
 
 /* ── Avancement statut ── */
@@ -215,10 +247,22 @@ const advance = async (req, res) => {
   if (!next) return res.status(400).json({ message: "Statut final atteint" });
 
   // Restriction livreur : uniquement expedie→livre sur ses propres commandes
-  const isLivreurOnly = req.user.roles.includes("livreur") && !req.user.roles.includes("admin");
+  const isLivreurOnly = req.user.roles.includes("livreur") && !req.user.roles.includes("fournisseur") && !req.user.roles.includes("admin");
   if (isLivreurOnly) {
     if (statut !== "expedie")       return res.status(403).json({ message: "Vous ne pouvez que confirmer vos livraisons" });
     if (livreur_id !== req.user.id) return res.status(403).json({ message: "Cette livraison ne vous est pas assignée" });
+  }
+
+  // Restriction fournisseur : uniquement en_attente→en_preparation et en_preparation→expedie,
+  // et seulement pour les commandes contenant leurs articles
+  const isFournisseurOnly = req.user.roles.includes("fournisseur") && !req.user.roles.includes("admin");
+  if (isFournisseurOnly) {
+    if (statut === "expedie") return res.status(403).json({ message: "La confirmation de livraison est réservée au livreur" });
+    const [[{ cnt }]] = await db.query(
+      "SELECT COUNT(*) AS cnt FROM commande_items WHERE commande_id=? AND fournisseur_id=?",
+      [req.params.id, req.user.id]
+    );
+    if (!Number(cnt)) return res.status(403).json({ message: "Cette commande ne contient pas vos articles" });
   }
 
   let heureLivraison = null;
@@ -311,7 +355,7 @@ const livreurOrders = async (req, res) => {
             CONCAT(u.prenom,' ',u.nom) AS client_nom, u.telephone AS client_tel
      FROM commandes c
      JOIN users u ON u.id = c.client_id
-     WHERE c.livreur_id = ? AND c.statut IN ('expedie','livre')
+     WHERE c.livreur_id = ? AND c.statut IN ('expedie','livre','retourné')
      ORDER BY c.heure_livraison ASC`,
     [lid]
   );
@@ -325,4 +369,33 @@ const livreurOrders = async (req, res) => {
   res.json(rows);
 };
 
-module.exports = { create, myOrders, adminList, advance, fournisseurOrders, fournisseurStats, livreurOrders };
+/* ── Vérification paiement Stripe au retour du Checkout ── */
+const verifyStripePayment = async (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ message: "sessionId requis" });
+
+  const session = await retrieveCheckoutSession(sessionId);
+  if (session.payment_status !== "paid") return res.json({ ok: false });
+
+  const ref = session.metadata?.ref;
+  if (ref) {
+    const [result] = await db.query(
+      "UPDATE commandes SET statut='en_preparation' WHERE ref=? AND statut='en_attente' AND mode_paiement='stripe'",
+      [ref]
+    );
+    // Si affectedRows > 0, c'est nous qui mettons à jour en premier → on envoie l'email
+    if (result.affectedRows > 0) {
+      const [[cmd]] = await db.query(
+        "SELECT c.total, u.email, u.prenom FROM commandes c JOIN users u ON u.id=c.client_id WHERE c.ref=?",
+        [ref]
+      );
+      if (cmd) {
+        sendEmail(cmd.email, "commande_confirmee", { ref, prenom: cmd.prenom, total: Number(cmd.total).toFixed(2) })
+          .catch(() => {});
+      }
+    }
+  }
+  res.json({ ok: true, ref });
+};
+
+module.exports = { create, myOrders, adminList, advance, fournisseurOrders, fournisseurStats, livreurOrders, verifyStripePayment };
