@@ -25,7 +25,6 @@ const Login = () => {
     e.preventDefault();
     setTouched({ email: true, password: true });
     if (emailErr || passErr || !form.email || !form.password) return;
-    setError("");
 
     const res = await login(form.email, form.password);
     if (!res.success) { setError(res.message); return; }
